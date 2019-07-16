@@ -1,0 +1,8 @@
+md5: e5bb59206ec50e7b7e8248362000837b
+wdir: ..
+outs:
+- md5: 99146f66e2f0092c66d1cd8949287915.dir
+  path: data/coco
+  cache: true
+  metric: false
+  persist: false
