@@ -1,8 +1,0 @@
-md5: e41c1429ee43db2d67f0cea5afc7c880
-wdir: ..
-outs:
-- md5: d6321a2c12e3f18d55f1ba8852ba393f
-  path: ckp/retinanet_r50_fpn_2x_20190616-75574209.pth
-  cache: true
-  metric: false
-  persist: false

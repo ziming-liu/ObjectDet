@@ -1,8 +1,0 @@
-md5: 98c90ed0f8ba0441842343570f04d843
-wdir: .
-outs:
-- md5: 219967d2b0333034124c5426dd5c439f.dir
-  path: coco
-  cache: true
-  metric: false
-  persist: false
