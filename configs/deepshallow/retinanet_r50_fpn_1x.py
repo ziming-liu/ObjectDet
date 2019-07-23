@@ -1,17 +1,17 @@
 # model settings
 model = dict(
     type='RetinaNet',
-    pretrained=['modelzoo://resnet50','modelzoo://resnet18'],
+    pretrained=['torchvision://resnet50','torchvision://resnet18'],
     backbone=dict(
-        type='ResNet',
+        type='DeShNet',
         depth=50,
         num_stages=4,
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
-        style='pytorch'),
+        style='pytorch',with_cp=True),
     neck=dict(
         type='FPN',
-        in_channels=[256, 512, 1024, 2048],
+        in_channels=[64,128,256, 512,],
         out_channels=256,
         start_level=1,
         add_extra_convs=True,
@@ -107,7 +107,7 @@ lr_config = dict(
 checkpoint_config = dict(interval=1)
 # yapf:disable
 log_config = dict(
-    interval=50,
+    interval=5,
     hooks=[
         dict(type='TextLoggerHook'),
         # dict(type='TensorboardLoggerHook')
@@ -119,6 +119,6 @@ device_ids = range(8)
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = './work_dirs/retinanet_r50_fpn_1x'
-load_from = None
+load_from = './ckp/retinanet_r50_fpn_1x_20181125-7b0c2548.pth'
 resume_from = None
 workflow = [('train', 1)]

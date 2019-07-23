@@ -6,6 +6,20 @@ import torch.utils.checkpoint as cp
 from mmcv.runner.checkpoint import open_mmlab_model_urls, load_state_dict
 from torch.nn.modules.batchnorm import _BatchNorm
 
+import os
+import os.path as osp
+import pkgutil
+import time
+import warnings
+from collections import OrderedDict
+from importlib import import_module
+
+import mmcv
+import torch
+import torchvision
+from torch.utils import model_zoo
+from mmcv.runner import get_dist_info
+
 from mmcv.cnn import constant_init, kaiming_init
 from mmcv.runner import load_checkpoint
 from torch.utils import model_zoo
@@ -15,6 +29,30 @@ from mmdet.models.plugins import GeneralizedAttention
 
 from ..registry import BACKBONES
 from ..utils import build_conv_layer, build_norm_layer
+
+
+def load_url_dist(url):
+    """ In distributed setting, this function only download checkpoint at
+    local rank 0 """
+    rank, world_size = get_dist_info()
+    rank = int(os.environ.get('LOCAL_RANK', rank))
+    if rank == 0:
+        checkpoint = model_zoo.load_url(url)
+    if world_size > 1:
+        torch.distributed.barrier()
+        if rank > 0:
+            checkpoint = model_zoo.load_url(url)
+    return checkpoint
+def get_torchvision_models():
+    model_urls = dict()
+    for _, name, ispkg in pkgutil.walk_packages(torchvision.models.__path__):
+        if ispkg:
+            continue
+        _zoo = import_module('torchvision.models.{}'.format(name))
+        if hasattr(_zoo, 'model_urls'):
+            _urls = getattr(_zoo, 'model_urls')
+            model_urls.update(_urls)
+    return model_urls
 
 
 class BasicBlock(nn.Module):
@@ -441,12 +479,39 @@ class DeShNet(nn.Module):
                 gen_attention=gen_attention,
                 gen_attention_blocks=stage_with_gen_attention[i])
             self.inplanes = planes * self.block.expansion
-            layer_name = 'deep_layer{}'.format(i + 1)
+            layer_name = 'layer{}'.format(i + 1)
             self.add_module(layer_name, res_layer)
             self.res_layers.append(layer_name)
 
         self._freeze_stages()
-
+        # shallow conv
+        self.depth = 18
+        self.num_stages = 4
+        assert num_stages >= 1 and num_stages <= 4
+        self.strides = strides
+        self.dilations = dilations
+        assert len(strides) == len(dilations) == num_stages
+        self.out_indices = out_indices
+        assert max(out_indices) < num_stages
+        self.style = style
+        self.frozen_stages = frozen_stages
+        self.conv_cfg = conv_cfg
+        self.norm_cfg = norm_cfg
+        self.with_cp = with_cp
+        self.norm_eval = norm_eval
+        self.dcn = dcn
+        self.stage_with_dcn = stage_with_dcn
+        if dcn is not None:
+            assert len(stage_with_dcn) == num_stages
+        self.gen_attention = gen_attention
+        self.gcb = gcb
+        self.stage_with_gcb = stage_with_gcb
+        if gcb is not None:
+            assert len(stage_with_gcb) == num_stages
+        self.zero_init_residual = zero_init_residual
+        self.block, stage_blocks = self.arch_settings[18]
+        self.stage_blocks = stage_blocks[:num_stages]
+        self.inplanes = 64
         self._make_sh_stem_layer()
         self.shallow_res_layers = []
         for i, num_blocks in enumerate(self.stage_blocks):
@@ -463,7 +528,7 @@ class DeShNet(nn.Module):
                 stride=stride,
                 dilation=dilation,
                 style=self.style,
-                with_cp=with_cp,
+                with_cp=False,
                 conv_cfg=conv_cfg,
                 norm_cfg=norm_cfg,
                 dcn=dcn,
@@ -481,22 +546,24 @@ class DeShNet(nn.Module):
 
         # interaction
         deep_channels = [256,512,1024,2048]
-        shallow_channels = [56,128,256,512]
+        shallow_channels = [64,128,256,512]
         self.fuse_layer =[]
         for i in  range(4):
-            self.fuse_layer.append(
-                nn.Sequential(
-                    build_conv_layer(
-                        self.conv_cfg,
-                        deep_channels[i],
-                        shallow_channels[i],
-                        kernel_size=1,
-                        stride=1,
-                        padding=0,
-                        bias=False),
-                    build_norm_layer(self.norm_cfg, shallow_channels[i])[1],
-                    nn.Upsample(
-                        scale_factor=2, mode='nearest')))
+            fusing_layer = nn.Sequential(
+                build_conv_layer(
+                    self.conv_cfg,
+                    deep_channels[i],
+                    shallow_channels[i],
+                    kernel_size=1,
+                    stride=1,
+                    padding=0,
+                    bias=False),
+                build_norm_layer(self.norm_cfg, shallow_channels[i])[1],
+                nn.Upsample(
+                    scale_factor=2, mode='nearest'))
+            layer_name = 'fusing_layer{}'.format(i + 1)
+            self.add_module(layer_name, fusing_layer)
+            self.fuse_layer.append(fusing_layer)
 
 
     @property
@@ -516,6 +583,10 @@ class DeShNet(nn.Module):
         self.add_module(self.norm1_name, norm1)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+
+    @property
+    def norm1_sh(self):
+        return getattr(self, self.norm1_name_sh)
     def _make_sh_stem_layer(self):
         self.conv1_sh = build_conv_layer(
             self.conv_cfg,
@@ -538,7 +609,7 @@ class DeShNet(nn.Module):
                     param.requires_grad = False
 
         for i in range(1, self.frozen_stages + 1):
-            m = getattr(self, 'deep_layer{}'.format(i))
+            m = getattr(self, 'layer{}'.format(i))
             m.eval()
             for param in m.parameters():
                 param.requires_grad = False
@@ -557,20 +628,79 @@ class DeShNet(nn.Module):
                 param.requires_grad = False
 
     def init_weights(self, pretrained=None):
-        if isinstance(pretrained, str):
+        if isinstance(pretrained, list):
             logger = logging.getLogger()
-            model_name = pretrained[0][13:]
-            checkpoint = model_zoo.load_url(open_mmlab_model_urls[model_name])
-            state_dict = {'deep_'+k : v for k,v in checkpoint.items() if k[:5] is 'layer'}
+            filename = pretrained[0]
+            if filename.startswith('modelzoo://'):
+                warnings.warn('The URL scheme of "modelzoo://" is deprecated, please '
+                              'use "torchvision://" instead')
+                model_urls = get_torchvision_models()
+                model_name = filename[11:]
+                checkpoint = load_url_dist(model_urls[model_name])
+            elif filename.startswith('torchvision://'):
+                model_urls = get_torchvision_models()
+                model_name = filename[14:]
+                checkpoint = load_url_dist(model_urls[model_name])
+            elif filename.startswith('open-mmlab://'):
+                model_name = filename[13:]
+                checkpoint = load_url_dist(open_mmlab_model_urls[model_name])
+            elif filename.startswith(('http://', 'https://')):
+                checkpoint = load_url_dist(filename)
+            else:
+                if not osp.isfile(filename):
+                    raise IOError('{} is not a checkpoint file'.format(filename))
+                checkpoint = torch.load(filename, map_location=map_location)
+            #print(checkpoint.keys)
+            #state_dict = {'deep_'+k : v for k,v in checkpoint.items() if 'layer' in k}
+            #print(state_dict.keys())
             # load state_dict
+            # get state_dict from checkpoint
+            if isinstance(checkpoint, OrderedDict):
+                state_dict = checkpoint
+            elif isinstance(checkpoint, dict) and 'state_dict' in checkpoint:
+                state_dict = checkpoint['state_dict']
+            else:
+                raise RuntimeError(
+                    'No state_dict found in checkpoint file {}'.format(filename))
+            # strip prefix of state_dict
+            if list(state_dict.keys())[0].startswith('module.'):
+                state_dict = {k[7:]: v for k, v in checkpoint['state_dict'].items()}
             if hasattr(self, 'module'):
                 load_state_dict(self.module, state_dict, False, logger)
             else:
                 load_state_dict(self, state_dict, False, logger)
-            model_name = pretrained[1][13:]
-            checkpoint = model_zoo.load_url(open_mmlab_model_urls[model_name])
-            state_dict = {'shallow_' + k: v for k, v in checkpoint.items() if k[:5] is 'layer'}
-            # load state_dict
+            filename = pretrained[1]
+            if filename.startswith('modelzoo://'):
+                warnings.warn('The URL scheme of "modelzoo://" is deprecated, please '
+                              'use "torchvision://" instead')
+                model_urls = get_torchvision_models()
+                model_name = filename[11:]
+                checkpoint = load_url_dist(model_urls[model_name])
+            elif filename.startswith('torchvision://'):
+                model_urls = get_torchvision_models()
+                model_name = filename[14:]
+                checkpoint = load_url_dist(model_urls[model_name])
+            elif filename.startswith('open-mmlab://'):
+                model_name = filename[13:]
+                checkpoint = load_url_dist(open_mmlab_model_urls[model_name])
+            elif filename.startswith(('http://', 'https://')):
+                checkpoint = load_url_dist(filename)
+            else:
+                if not osp.isfile(filename):
+                    raise IOError('{} is not a checkpoint file'.format(filename))
+                checkpoint = torch.load(filename, map_location=map_location)
+            if isinstance(checkpoint, OrderedDict):
+                state_dict = checkpoint
+            elif isinstance(checkpoint, dict) and 'state_dict' in checkpoint:
+                state_dict = checkpoint['state_dict']
+            else:
+                raise RuntimeError(
+                    'No state_dict found in checkpoint file {}'.format(filename))
+            # strip prefix of state_dict
+            if list(state_dict.keys())[0].startswith('module.'):
+                state_dict = {'shallow_'+k[7:]: v for k, v in checkpoint['state_dict'].items() if 'layer' in k}
+            else:
+                state_dict = {'shallow_'+k: v for k, v in checkpoint.items() if 'layer' in k}
             if hasattr(self, 'module'):
                 load_state_dict(self.module, state_dict, False, logger)
             else:
@@ -598,7 +728,8 @@ class DeShNet(nn.Module):
             raise TypeError('pretrained must be a str or None')
 
     def forward(self, input):
-        hd_input = F.upsample_bilinear(input,input.shape[-2:],scale_factor=2)
+        hd_input = F.interpolate(input,scale_factor=2)
+        #print(f'input={input.shape},hdinput={hd_input.shape}')
         x = self.conv1(input)
         x = self.norm1(x)
         x = self.relu(x)
@@ -615,7 +746,9 @@ class DeShNet(nn.Module):
             shallow_layer = getattr(self,self.shallow_res_layers[i])
             x_de = res_layer(x_de)
             x_sh = shallow_layer(x_sh)
-            x_sh += self.fuse_layer[i](x_de)
+            #print(x_de.shape)
+            #print(x_sh.shape)
+            x_sh = x_sh +  self.fuse_layer[i](x_de)
             if i in self.out_indices:
                 outs.append(x_sh)
         return tuple(outs)

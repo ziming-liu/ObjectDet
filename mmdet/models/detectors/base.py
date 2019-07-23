@@ -20,7 +20,7 @@ class BaseDetector(nn.Module):
 
     @property
     def with_neck(self):
-        return hasattr(self, 'neck') and self.neck is not None
+        return hasattr(self, 'neck_custom') and self.neck_custom is not None
 
     @property
     def with_shared_head(self):
