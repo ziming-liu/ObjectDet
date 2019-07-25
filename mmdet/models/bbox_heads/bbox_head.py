@@ -137,11 +137,12 @@ class BBoxHead(nn.Module):
                 avg_factor=bbox_targets.size(0),
                 reduction_override=reduction_override)
         if adv_score is not None:# must be negtive loss
-            losses['loss_adv'] = -self.loss_adv(
+            losses['loss_adv'] = -1* self.loss_adv(
                 adv_score,
                 size_labels,
                 size_labels_weights,
                 reduction_override=reduction_override)
+            print("lossadv {}".format(losses['loss_adv']))
         return losses
 
     @force_fp32(apply_to=('cls_score', 'bbox_pred'))
