@@ -63,6 +63,7 @@ def bbox_target_single(pos_bboxes,
         area = (pos_gt_bboxes[:,3] - pos_gt_bboxes[:,1])  * (pos_gt_bboxes[:,2]-pos_gt_bboxes[:,0]).view(-1)
         gt_size = torch.where(area<64*64,torch.full_like(area,0),torch.full_like(area,1))
         size_labels[:num_pos] = gt_size
+        print("gt size {}".format(gt_size))
         size_labels_weights[:num_pos] = pos_weight
     if num_neg > 0:
         label_weights[-num_neg:] = 1.0
