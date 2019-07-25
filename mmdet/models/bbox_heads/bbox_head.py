@@ -139,7 +139,7 @@ class BBoxHead(nn.Module):
         if adv_score is not None:# must be negtive loss
             losses['loss_adv'] = -1* self.loss_adv(
                 score=adv_score.view(-1),
-                label=size_labels,
+                label=size_labels.cuda(),
                 weight=size_labels_weights)
             print("lossadv {}".format(losses['loss_adv']))
         return losses
