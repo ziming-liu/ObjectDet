@@ -18,6 +18,7 @@ class BBoxHead(nn.Module):
                  with_avg_pool=False,
                  with_cls=True,
                  with_reg=True,
+                 with_adv=False,
                  roi_feat_size=7,
                  in_channels=256,
                  num_classes=81,
@@ -29,12 +30,14 @@ class BBoxHead(nn.Module):
                      use_sigmoid=False,
                      loss_weight=1.0),
                  loss_bbox=dict(
-                     type='SmoothL1Loss', beta=1.0, loss_weight=1.0)):
+                     type='SmoothL1Loss', beta=1.0, loss_weight=1.0),
+                 loss_adv = dict(type=('AdversarialLoss'),loss_weight=1.0)):
         super(BBoxHead, self).__init__()
         assert with_cls or with_reg
         self.with_avg_pool = with_avg_pool
         self.with_cls = with_cls
         self.with_reg = with_reg
+        self.with_adv = with_adv
         self.roi_feat_size = roi_feat_size
         self.in_channels = in_channels
         self.num_classes = num_classes
@@ -45,6 +48,7 @@ class BBoxHead(nn.Module):
 
         self.loss_cls = build_loss(loss_cls)
         self.loss_bbox = build_loss(loss_bbox)
+        self.loss_adv = build_loss(loss_adv)
 
         in_channels = self.in_channels
         if self.with_avg_pool:
@@ -56,6 +60,8 @@ class BBoxHead(nn.Module):
         if self.with_reg:
             out_dim_reg = 4 if reg_class_agnostic else 4 * num_classes
             self.fc_reg = nn.Linear(in_channels, out_dim_reg)
+        if self.with_adv:
+            self.fc_adv = nn.Linear(in_channels,1)
         self.debug_imgs = None
 
     def init_weights(self):
@@ -72,8 +78,9 @@ class BBoxHead(nn.Module):
             x = self.avg_pool(x)
         x = x.view(x.size(0), -1)
         cls_score = self.fc_cls(x) if self.with_cls else None
+        adv_score = self.fc_adv(x) if self.with_adv else None
         bbox_pred = self.fc_reg(x) if self.with_reg else None
-        return cls_score, bbox_pred
+        return cls_score,adv_score, bbox_pred
 
     def get_target(self, sampling_results, gt_bboxes, gt_labels,
                    rcnn_train_cfg):
@@ -96,11 +103,15 @@ class BBoxHead(nn.Module):
     @force_fp32(apply_to=('cls_score', 'bbox_pred'))
     def loss(self,
              cls_score,
+             adv_score,
              bbox_pred,
              labels,
              label_weights,
+             size_labels,
+             size_labels_weights,
              bbox_targets,
              bbox_weights,
+             #adv_score=None,
              reduction_override=None):
         losses = dict()
         if cls_score is not None:
@@ -124,6 +135,12 @@ class BBoxHead(nn.Module):
                 bbox_targets[pos_inds],
                 bbox_weights[pos_inds],
                 avg_factor=bbox_targets.size(0),
+                reduction_override=reduction_override)
+        if adv_score is not None:
+            losses['loss_adv'] = self.loss_adv(
+                adv_score,
+                size_labels,
+                size_labels_weights,
                 reduction_override=reduction_override)
         return losses
 

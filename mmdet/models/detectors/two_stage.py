@@ -144,11 +144,22 @@ class TwoStageDetector(BaseDetector, RPNTestMixin, BBoxTestMixin,
                 x[:self.bbox_roi_extractor.num_inputs], rois)
             if self.with_shared_head:
                 bbox_feats = self.shared_head(bbox_feats)
-            cls_score, bbox_pred = self.bbox_head(bbox_feats)
+            cls_score,adv_score, bbox_pred = self.bbox_head(bbox_feats)
 
             bbox_targets = self.bbox_head.get_target(
                 sampling_results, gt_bboxes, gt_labels, self.train_cfg.rcnn)
-            loss_bbox = self.bbox_head.loss(cls_score, bbox_pred,
+            """ 
+            # big/small
+            num_imgs = gt_bboxes.size()[0]
+            size_labels = []
+            for ii in range(num_imgs):
+                size_label = torch.ones(gt_bboxes[ii].size(0))
+                area = (gt_bboxes[ii][:, 3] - gt_bboxes[ii][:, 1]) * (gt_bboxes[ii][ :, 2] - gt_bboxes[ii][:, 0]).view(-1)
+                size_label = torch.where(area<64*64,torch.full_like(area,0),size_label)
+                print("size label {}".format(size_label))
+                size_labels.append(size_label)
+            """
+            loss_bbox = self.bbox_head.loss(cls_score,adv_score, bbox_pred,
                                             *bbox_targets)
             losses.update(loss_bbox)
 
