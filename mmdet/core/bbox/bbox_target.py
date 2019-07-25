@@ -65,7 +65,7 @@ def bbox_target_single(pos_bboxes,
         gt_size = torch.where(area<64*64*2,torch.full_like(area,0),torch.full_like(area,1))
         size_labels[:num_pos] = gt_size
         #print("gt size {}".format(gt_size))
-        size_labels_weights[:num_pos] = pos_weight
+        size_labels_weights[:num_pos] = pos_weight.copy()
     if num_neg > 0:
         label_weights[-num_neg:] = 1.0
 
