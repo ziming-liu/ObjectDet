@@ -140,8 +140,8 @@ class BBoxHead(nn.Module):
             losses['loss_adv'] = -1* self.loss_adv(
                 adv_score,
                 size_labels,
-                size_labels_weights,
-                reduction_override=reduction_override)
+                size_labels_weights,)
+                #reduction_override=reduction_override)
             print("lossadv {}".format(losses['loss_adv']))
         return losses
 
