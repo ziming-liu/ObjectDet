@@ -44,7 +44,8 @@ model = dict(
         loss_cls=dict(
             type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0),
         loss_bbox=dict(type='SmoothL1Loss', beta=1.0, loss_weight=1.0),
-        loss_adv = dict(type='AdversarialLoss',)))
+        loss_adv = dict(type='AdversarialLoss',)
+    ))
 # model training and testing settings
 train_cfg = dict(
     rpn=dict(
@@ -78,7 +79,7 @@ train_cfg = dict(
             min_pos_iou=0.5,
             ignore_iof_thr=-1),
         sampler=dict(
-            type='OHEMSampler',
+            type='RandomSampler',
             num=512,
             pos_fraction=0.25,
             neg_pos_ub=-1,
@@ -155,14 +156,14 @@ log_config = dict(
     interval=10,
     hooks=[
         dict(type='TextLoggerHook'),
-        # dict(type='TensorboardLoggerHook')
+        dict(type='TensorboardLoggerHook')
     ])
 # yapf:enable
 # runtime settings
 total_epochs = 12
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/faster_rcnn_r50_fpn_1x_adverseloss'
+work_dir = './work_dirs/faster_rcnn_r50_fpn_1x_advloss'
 load_from = None
 resume_from = None
 workflow = [('train', 1)]
