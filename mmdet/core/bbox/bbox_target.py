@@ -59,12 +59,12 @@ def bbox_target_single(pos_bboxes,
                                       target_stds)
         bbox_targets[:num_pos, :] = pos_bbox_targets
         bbox_weights[:num_pos, :] = 1
-        print("gtboxszie {}".format(pos_gt_bboxes))
+        #print("gtboxszie {}".format(pos_gt_bboxes))
         area = (pos_gt_bboxes[:,3] - pos_gt_bboxes[:,1])  * (pos_gt_bboxes[:,2]-pos_gt_bboxes[:,0]).view(-1)
-        print("area {}".format(area))
+        #print("area {}".format(area))
         gt_size = torch.where(area<64*64,torch.full_like(area,0),torch.full_like(area,1))
         size_labels[:num_pos] = gt_size
-        print("gt size {}".format(gt_size))
+        #print("gt size {}".format(gt_size))
         size_labels_weights[:num_pos] = pos_weight
     if num_neg > 0:
         label_weights[-num_neg:] = 1.0
