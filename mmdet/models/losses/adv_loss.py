@@ -34,6 +34,6 @@ class AdversarialLoss(nn.Module):
             cls_score,
             label,
             weight,
-            reduction=reduction,
+            reduction='mean',
             **kwargs)
         return loss_cls
