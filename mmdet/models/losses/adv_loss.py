@@ -33,4 +33,4 @@ class AdversarialLoss(nn.Module):
                                            pos_weight=weight,
                                            reduction=self.reduction)
 
-        return loss_adv
+        return 1/(1+torch.exp(-loss_adv))
