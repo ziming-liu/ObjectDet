@@ -138,10 +138,9 @@ class BBoxHead(nn.Module):
                 reduction_override=reduction_override)
         if adv_score is not None:# must be negtive loss
             losses['loss_adv'] = -1* self.loss_adv(
-                adv_score,
-                size_labels,
-                size_labels_weights)
-                #reduction_override=reduction_override)
+                score=adv_score,
+                labels=size_labels,
+                weight=size_labels_weights)
             print("lossadv {}".format(losses['loss_adv']))
         return losses
 

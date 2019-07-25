@@ -20,7 +20,7 @@ class AdversarialLoss(nn.Module):
         self.criterion = torch.nn.BCEWithLogitsLoss(weight=loss_weight,
                                                     size_average=avg_factor)
     def forward(self,
-                cls_score,
+                score,
                 label,
                 weight=None,
                 **kwargs):
@@ -28,7 +28,7 @@ class AdversarialLoss(nn.Module):
         #reduction = (
         #    reduction_override if reduction_override else self.reduction)
         loss_cls = self.criterion(
-            cls_score,
+            score,
             label,
             weight,
             **kwargs)
