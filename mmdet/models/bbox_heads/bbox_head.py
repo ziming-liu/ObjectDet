@@ -141,7 +141,7 @@ class BBoxHead(nn.Module):
                 score=adv_score.view(-1).cuda(),
                 label=size_labels.float().cuda(),
                 weight=size_labels_weights.cuda())
-            print("lossadv {}".format(losses['loss_adv']))
+            #print("lossadv {}".format(losses['loss_adv']))
         return losses
 
     @force_fp32(apply_to=('cls_score', 'bbox_pred'))

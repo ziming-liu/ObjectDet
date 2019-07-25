@@ -39,7 +39,7 @@ model = dict(
         in_channels=256,
         fc_out_channels=1024,
         roi_feat_size=7,
-        with_adv=False,
+        with_adv=True,
         num_classes=81,
         target_means=[0., 0., 0., 0.],
         target_stds=[0.1, 0.1, 0.2, 0.2],
@@ -47,7 +47,7 @@ model = dict(
         loss_cls=dict(
             type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0),
         loss_bbox=dict(type='SmoothL1Loss', beta=1.0, loss_weight=1.0),
-
+        loss_adv = dict(type='AdversarialLoss',)
     ))
 # model training and testing settings
 train_cfg = dict(
@@ -166,7 +166,7 @@ log_config = dict(
 total_epochs = 12
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/faster_rcnn_r50_fpn_1x_desh'
+work_dir = './work_dirs/faster_rcnn_r50_fpn_1x_desh_advloss'
 load_from = None
 resume_from = None
 workflow = [('train', 1)]
