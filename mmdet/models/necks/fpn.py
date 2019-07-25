@@ -137,5 +137,6 @@ class FPN(nn.Module):
                     else:
                         outs.append(self.fpn_convs[i](outs[-1]))
         for z in range(len(outs)):
+            print('\n')
             print(outs[z].shape)
         return tuple(outs)
