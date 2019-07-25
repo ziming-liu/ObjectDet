@@ -148,7 +148,7 @@ class TwoStageDetector(BaseDetector, RPNTestMixin, BBoxTestMixin,
             cls_score,adv_score, bbox_pred = self.bbox_head(bbox_feats)
 
             bbox_targets = self.bbox_head.get_target(
-                sampling_results, gt_bboxes, gt_labels, self.train_cfg.rcnn,img_meta)
+                sampling_results, gt_bboxes, gt_labels, self.train_cfg.rcnn,)
             """ 
             # big/small
             num_imgs = gt_bboxes.size()[0]
