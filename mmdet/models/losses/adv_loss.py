@@ -32,4 +32,5 @@ class AdversarialLoss(nn.Module):
                                            self.loss_weight,
                                            pos_weight=weight,
                                            reduction=self.reduction)
-        return loss_adv
+
+        return F.softmax(loss_adv)
