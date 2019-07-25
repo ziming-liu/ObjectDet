@@ -17,8 +17,8 @@ class AdversarialLoss(nn.Module):
 
         self.reduction = reduction
         self.loss_weight = loss_weight
-        self.criterion = torch.nn.BCEWithLogitsLoss(weight=loss_weight,
-                                                    size_average=avg_factor)
+        #self.criterion = torch.nn.BCEWithLogitsLoss(weight=loss_weight,
+        #                                            size_average=avg_factor)
     def forward(self,
                 score,
                 label,
@@ -27,9 +27,9 @@ class AdversarialLoss(nn.Module):
         #assert reduction_override in (None, 'none', 'mean', 'sum')
         #reduction = (
         #    reduction_override if reduction_override else self.reduction)
-        loss_cls = self.criterion(
-            score,
-            label,
-            weight,
-            )
-        return loss_cls
+
+        loss_adv = F.binary_cross_entropy_with_logits(score, label,
+                                           self.loss_weight,
+                                           pos_weight=weight,
+                                           reduction=self.reduction)
+        return loss_adv
