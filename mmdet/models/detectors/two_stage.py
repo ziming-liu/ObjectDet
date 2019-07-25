@@ -111,7 +111,7 @@ class TwoStageDetector(BaseDetector, RPNTestMixin, BBoxTestMixin,
             proposal_cfg = self.train_cfg.get('rpn_proposal',
                                               self.test_cfg.rpn)
             proposal_inputs = rpn_outs + (img_meta, proposal_cfg)
-            print("scale factor {}".format(img_meta[0]['scale_factor']))
+            #print("scale factor {}".format(img_meta[0]['scale_factor']))
             proposal_list = self.rpn_head.get_bboxes(*proposal_inputs)
         else:
             proposal_list = proposals
