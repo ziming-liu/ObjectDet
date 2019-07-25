@@ -59,6 +59,10 @@ class ConvFCBBoxHead(BBoxHead):
         self.cls_convs, self.cls_fcs, self.cls_last_dim = \
             self._add_conv_fc_branch(
                 self.num_cls_convs, self.num_cls_fcs, self.shared_out_channels)
+        # add adv branch
+        self.adv_convs, self.adv_fcs, self.adv_last_dim = \
+            self._add_conv_fc_branch(
+                self.num_cls_convs, self.num_cls_fcs, self.shared_out_channels)
 
         # add reg specific branch
         self.reg_convs, self.reg_fcs, self.reg_last_dim = \
@@ -79,7 +83,8 @@ class ConvFCBBoxHead(BBoxHead):
             out_dim_reg = (4 if self.reg_class_agnostic else 4 *
                            self.num_classes)
             self.fc_reg = nn.Linear(self.reg_last_dim, out_dim_reg)
-
+        if self.with_adv:
+            self.fc_adv = nn.Linear(self.cls_last_dim,1)
     def _add_conv_fc_branch(self,
                             num_branch_convs,
                             num_branch_fcs,
@@ -144,6 +149,7 @@ class ConvFCBBoxHead(BBoxHead):
         # separate branches
         x_cls = x
         x_reg = x
+        x_adv = x
 
         for conv in self.cls_convs:
             x_cls = conv(x_cls)
@@ -153,6 +159,15 @@ class ConvFCBBoxHead(BBoxHead):
             x_cls = x_cls.view(x_cls.size(0), -1)
         for fc in self.cls_fcs:
             x_cls = self.relu(fc(x_cls))
+
+        for conv in self.adv_convs:
+            x_adv = conv(x_adv)
+        if x_adv.dim() > 2:
+            if self.with_avg_pool:
+                x_adv = self.avg_pool(x_adv)
+            x_adv = x_adv.view(x_adv.size(0), -1)
+        for fc in self.adv_fcs:
+            x_adv = self.relu(fc(x_adv))
 
         for conv in self.reg_convs:
             x_reg = conv(x_reg)
@@ -165,7 +180,8 @@ class ConvFCBBoxHead(BBoxHead):
 
         cls_score = self.fc_cls(x_cls) if self.with_cls else None
         bbox_pred = self.fc_reg(x_reg) if self.with_reg else None
-        return cls_score, bbox_pred
+        adv_score = self.fc_adv(x_adv) if self.with_adv else None
+        return cls_score, adv_score, bbox_pred
 
 
 @HEADS.register_module
