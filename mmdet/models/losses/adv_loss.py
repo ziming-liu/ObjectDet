@@ -25,11 +25,11 @@ class AdversarialLoss(nn.Module):
                 cls_score,
                 label,
                 weight=None,
-                reduction_override=None,
+                #reduction_override=None,
                 **kwargs):
-        assert reduction_override in (None, 'none', 'mean', 'sum')
-        reduction = (
-            reduction_override if reduction_override else self.reduction)
+        #assert reduction_override in (None, 'none', 'mean', 'sum')
+        #reduction = (
+        #    reduction_override if reduction_override else self.reduction)
         loss_cls = self.criterion(
             cls_score,
             label,
