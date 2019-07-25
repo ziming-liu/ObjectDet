@@ -137,7 +137,7 @@ class BBoxHead(nn.Module):
                 avg_factor=bbox_targets.size(0),
                 reduction_override=reduction_override)
         if adv_score is not None:# must be negtive loss
-            losses['loss_adv'] = -1* self.loss_adv(
+            losses['loss_adv'] = -0.1* self.loss_adv(
                 score=adv_score.view(-1).cuda(),
                 label=size_labels.float().cuda(),
                 weight=size_labels_weights.cuda())
