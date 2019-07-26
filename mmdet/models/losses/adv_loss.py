@@ -12,7 +12,7 @@ class AdversarialLoss(nn.Module):
     def __init__(self,
                  avg_factor=None,
                  reduction='mean',
-                 loss_weight=torch.FloatTensor([1]).cuda()):
+                 loss_weight=None):
         super(AdversarialLoss, self).__init__()
 
         self.reduction = reduction
