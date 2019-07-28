@@ -46,7 +46,7 @@ def anchor_target(anchor_list,
         gt_bboxes_ignore_list = [None for _ in range(num_imgs)]
     if gt_labels_list is None:
         gt_labels_list = [None for _ in range(num_imgs)]
-    (all_labels, all_label_weights, all_bbox_targets, all_bbox_weights,
+    (all_labels, all_label_weights, all_size_labels,all_size_label_weights, all_bbox_targets, all_bbox_weights,
      pos_inds_list, neg_inds_list) = multi_apply(
          anchor_target_single,
          anchor_list,
@@ -70,9 +70,11 @@ def anchor_target(anchor_list,
     # split targets to a list w.r.t. multiple levels
     labels_list = images_to_levels(all_labels, num_level_anchors)
     label_weights_list = images_to_levels(all_label_weights, num_level_anchors)
+    size_labels_list = images_to_levels(all_size_labels, num_level_anchors)
+    size_label_weights_list = images_to_levels(all_size_label_weights, num_level_anchors)
     bbox_targets_list = images_to_levels(all_bbox_targets, num_level_anchors)
     bbox_weights_list = images_to_levels(all_bbox_weights, num_level_anchors)
-    return (labels_list, label_weights_list, bbox_targets_list,
+    return (labels_list, label_weights_list,size_labels_list,size_label_weights_list, bbox_targets_list,
             bbox_weights_list, num_total_pos, num_total_neg)
 
 
