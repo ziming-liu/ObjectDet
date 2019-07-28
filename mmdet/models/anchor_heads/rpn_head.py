@@ -60,7 +60,6 @@ class RPNHead(AnchorHead):
 
     def get_bboxes_single(self,
                           cls_scores,
-                          adv_scores,
                           bbox_preds,
                           mlvl_anchors,
                           img_shape,
