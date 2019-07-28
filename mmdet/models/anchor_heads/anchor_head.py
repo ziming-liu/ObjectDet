@@ -216,7 +216,7 @@ class AnchorHead(nn.Module):
             bbox_weights_list,
             num_total_samples=num_total_samples,
             cfg=cfg)
-        if losses_adv is not None:
+        if losses_adv[0] is not None:
             return dict(loss_cls=losses_cls, loss_adv=losses_adv,loss_bbox=losses_bbox)
         else:
             return dict(loss_cls=losses_cls,loss_bbox=losses_bbox)
