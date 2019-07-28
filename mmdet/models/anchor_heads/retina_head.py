@@ -34,7 +34,8 @@ class RetinaHead(AnchorHead):
         self.relu = nn.ReLU(inplace=True)
         self.cls_convs = nn.ModuleList()
         self.reg_convs = nn.ModuleList()
-        self.adv_convs = nn.ModuleList()
+        if self.with_adv:
+            self.adv_convs = nn.ModuleList()
         for i in range(self.stacked_convs):
             chn = self.in_channels if i == 0 else self.feat_channels
             self.cls_convs.append(
@@ -55,15 +56,16 @@ class RetinaHead(AnchorHead):
                     padding=1,
                     conv_cfg=self.conv_cfg,
                     norm_cfg=self.norm_cfg))
-            self.adv_convs.append(
-                ConvModule(
-                    chn,
-                    self.feat_channels,
-                    3,
-                    stride=1,
-                    padding=1,
-                    conv_cfg=self.conv_cfg,
-                    norm_cfg=self.norm_cfg))
+            if self.with_adv:
+                self.adv_convs.append(
+                    ConvModule(
+                        chn,
+                        self.feat_channels,
+                        3,
+                        stride=1,
+                        padding=1,
+                        conv_cfg=self.conv_cfg,
+                        norm_cfg=self.norm_cfg))
         self.retina_cls = nn.Conv2d(
             self.feat_channels,
             self.num_anchors * self.cls_out_channels,
@@ -71,11 +73,12 @@ class RetinaHead(AnchorHead):
             padding=1)
         self.retina_reg = nn.Conv2d(
             self.feat_channels, self.num_anchors * 4, 3, padding=1)
-        self.retina_adv = nn.Conv2d(
-            self.feat_channels,
-            self.num_anchors * 1,
-            3,
-            padding=1)
+        if self.with_adv:
+            self.retina_adv = nn.Conv2d(
+                self.feat_channels,
+                self.num_anchors * 1,
+                3,
+                padding=1)
 
     def init_weights(self):
         for m in self.cls_convs:
@@ -94,9 +97,12 @@ class RetinaHead(AnchorHead):
             cls_feat = cls_conv(cls_feat)
         for reg_conv in self.reg_convs:
             reg_feat = reg_conv(reg_feat)
-        for adv_con in self.adv_convs:
-            adv_feat = adv_con(adv_feat)
         cls_score = self.retina_cls(cls_feat)
         bbox_pred = self.retina_reg(reg_feat)
-        adv_score = self.retina_adv(adv_feat)
-        return cls_score,adv_score, bbox_pred
+        if self.with_adv:
+            for adv_con in self.adv_convs:
+                adv_feat = adv_con(adv_feat)
+            adv_score = self.retina_adv(adv_feat)
+            return cls_score,adv_score, bbox_pred
+        else:
+            return cls_score, None, bbox_pred
