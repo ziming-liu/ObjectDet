@@ -212,7 +212,7 @@ class AnchorHead(nn.Module):
         return dict(loss_cls=losses_cls, loss_adv=losses_adv,loss_bbox=losses_bbox)
 
     @force_fp32(apply_to=('cls_scores', 'bbox_preds'))
-    def get_bboxes(self, cls_scores,adv_scores, bbox_preds, img_metas, cfg,
+    def get_bboxes(self, cls_scores, bbox_preds, img_metas, cfg,
                    rescale=False):
         assert len(cls_scores) == len(bbox_preds)
         num_levels = len(cls_scores)

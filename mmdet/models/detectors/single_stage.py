@@ -57,8 +57,8 @@ class SingleStageDetector(BaseDetector):
 
     def simple_test(self, img, img_meta, rescale=False):
         x = self.extract_feat(img)
-        outs = self.bbox_head(x)
-        bbox_inputs = outs + (img_meta, self.test_cfg, rescale)
+        cls_scores,adv_scores,bbox_pred = self.bbox_head(x)
+        bbox_inputs = (cls_scores,bbox_pred) + (img_meta, self.test_cfg, rescale)
         bbox_list = self.bbox_head.get_bboxes(*bbox_inputs)
         bbox_results = [
             bbox2result(det_bboxes, det_labels, self.bbox_head.num_classes)
