@@ -157,7 +157,7 @@ class AnchorHead(nn.Module):
             avg_factor=num_total_samples)
         if adv_score is not None:# must be negtive loss
             loss_adv = 1 /  self.loss_adv(
-                score=adv_score.float(),
+                score=adv_score.view(adv_score.size(0),-1).float(),
                 label=size_labels.float(),
                 weight=size_labels_weights.float())
             return loss_cls,loss_adv, loss_bbox
