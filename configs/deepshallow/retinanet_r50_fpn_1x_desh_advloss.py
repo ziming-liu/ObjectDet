@@ -28,6 +28,7 @@ model = dict(
         anchor_strides=[8, 16, 32, 64, 128],
         target_means=[.0, .0, .0, .0],
         target_stds=[1.0, 1.0, 1.0, 1.0],
+        with_adv=True,
         loss_cls=dict(
             type='FocalLoss',
             use_sigmoid=True,
