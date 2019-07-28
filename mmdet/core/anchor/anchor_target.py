@@ -127,6 +127,8 @@ def anchor_target_single(flat_anchors,
     bbox_weights = torch.zeros_like(anchors)
     labels = anchors.new_zeros(num_valid_anchors, dtype=torch.long)
     label_weights = anchors.new_zeros(num_valid_anchors, dtype=torch.float)
+    size_labels = anchors.new_zeros(num_valid_anchors, dtype=torch.long)
+    size_label_weights = anchors.new_zeros(num_valid_anchors, dtype=torch.float)
 
     pos_inds = sampling_result.pos_inds
     neg_inds = sampling_result.neg_inds
@@ -144,6 +146,13 @@ def anchor_target_single(flat_anchors,
             label_weights[pos_inds] = 1.0
         else:
             label_weights[pos_inds] = cfg.pos_weight
+        pos_gt_bboxes = sampling_result.pos_gt_bboxes
+        area = (pos_gt_bboxes[:, 3] - pos_gt_bboxes[:, 1]) * (pos_gt_bboxes[:, 2] - pos_gt_bboxes[:, 0])
+        # print("area {}".format(area))
+        gt_size = torch.where(area < 64 * 64 * 2, torch.full_like(area, 0), torch.full_like(area, 1))
+        size_labels[pos_inds] = gt_size
+        # print("gt size {}".format(gt_size))
+        size_labels_weights = label_weights
     if len(neg_inds) > 0:
         label_weights[neg_inds] = 1.0
 
@@ -154,8 +163,10 @@ def anchor_target_single(flat_anchors,
         label_weights = unmap(label_weights, num_total_anchors, inside_flags)
         bbox_targets = unmap(bbox_targets, num_total_anchors, inside_flags)
         bbox_weights = unmap(bbox_weights, num_total_anchors, inside_flags)
+        size_labels = unmap(size_labels, num_total_anchors, inside_flags)
+        size_label_weights = unmap(size_label_weights, num_total_anchors, inside_flags)
 
-    return (labels, label_weights, bbox_targets, bbox_weights, pos_inds,
+    return (labels, label_weights,size_labels,size_label_weights, bbox_targets, bbox_weights, pos_inds,
             neg_inds)
 
 

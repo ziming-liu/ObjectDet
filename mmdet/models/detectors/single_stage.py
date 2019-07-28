@@ -19,7 +19,7 @@ class SingleStageDetector(BaseDetector):
         super(SingleStageDetector, self).__init__()
         self.backbone = builder.build_backbone(backbone)
         if neck is not None:
-            self.neck_custom = builder.build_neck(neck)
+            self.neck = builder.build_neck(neck)
         self.bbox_head = builder.build_head(bbox_head)
         self.train_cfg = train_cfg
         self.test_cfg = test_cfg
@@ -29,17 +29,17 @@ class SingleStageDetector(BaseDetector):
         super(SingleStageDetector, self).init_weights(pretrained)
         self.backbone.init_weights(pretrained=pretrained)
         if self.with_neck:
-            if isinstance(self.neck_custom, nn.Sequential):
-                for m in self.neck_custom:
+            if isinstance(self.neck, nn.Sequential):
+                for m in self.neck:
                     m.init_weights()
             else:
-                self.neck_custom.init_weights()
+                self.neck.init_weights()
         self.bbox_head.init_weights()
 
     def extract_feat(self, img):
         x = self.backbone(img)
         if self.with_neck:
-            x = self.neck_custom(x)
+            x = self.neck(x)
         return x
 
     def forward_train(self,
