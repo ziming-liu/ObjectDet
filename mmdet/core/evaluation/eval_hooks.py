@@ -145,6 +145,7 @@ class CocoDistEvalmAPHook(DistEvalHook):
         cocoGt = self.dataset.coco
         imgIds = cocoGt.getImgIds()
         for res_type in res_types:
+            print(result_files[res_type])
             cocoDt = cocoGt.loadRes(result_files[res_type])
             iou_type = res_type
             cocoEval = COCOeval(cocoGt, cocoDt, iou_type)
