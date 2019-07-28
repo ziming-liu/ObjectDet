@@ -728,7 +728,7 @@ class DeShNet(nn.Module):
             raise TypeError('pretrained must be a str or None')
 
     def forward(self, input):
-        hd_input = F.interpolate(input,scale_factor=1.5)
+        hd_input = F.interpolate(input,scale_factor=2)
         #print(f'input={input.shape},hdinput={hd_input.shape}')
         x = self.conv1(input)
         x = self.norm1(x)
