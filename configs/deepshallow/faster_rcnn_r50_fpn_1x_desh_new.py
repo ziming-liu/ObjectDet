@@ -11,7 +11,7 @@ model = dict(
         style='pytorch', with_cp=False),
     neck=dict(
         type='FPN',
-        in_channels=[64, 128, 256, 512, ],
+        in_channels=[64, 128, 256, 512,2048 ],
         out_channels=256,
         #start_level=1,
         #add_extra_convs=True,
