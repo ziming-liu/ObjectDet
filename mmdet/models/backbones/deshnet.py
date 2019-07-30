@@ -606,6 +606,8 @@ class DSNet(nn.Module):
                 layer = getattr(self,self.streams[lv][i])
                 x = layer(x)
                 if lv!=0:
+                    print("x shape {}".format(x.shape))
+                    print("lower shape {}".format(tem_outs[lv-1][i]))
                     x = x + F.interpolate(tem_outs[lv-1][i],scale_factor=2)
                 tem_outs[lv].append(x)
         return tuple(tem_outs[-1])
