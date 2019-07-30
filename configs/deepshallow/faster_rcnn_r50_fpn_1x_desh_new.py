@@ -1,17 +1,17 @@
 # model settings
 model = dict(
     type='FasterRCNN',
-    pretrained=['torchvision://resnet50', 'torchvision://resnet18'],
+    pretrained='modelzoo://resnet50',
     backbone=dict(
-        type='DSNet',
-        depth=('s3','s1'),
+        type='ResNet',
+        depth=50,
         num_stages=4,
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
-        style='pytorch', with_cp=False),
+        style='pytorch'),
     neck=dict(
         type='FPN',
-        in_channels=[64, 128, 256, 512,],
+        in_channels=[ 256, 512,1024,2048],
         out_channels=256,
         #start_level=1,
         #add_extra_convs=True,
@@ -150,7 +150,7 @@ optimizer_config = dict(grad_clip=dict(max_norm=20, norm_type=2))
 lr_config = dict(
     policy='step',
     warmup='linear',
-    warmup_iters=500,
+    warmup_iters=50,
     warmup_ratio=1.0 / 3,
     step=[8, 11])
 checkpoint_config = dict(interval=1)
