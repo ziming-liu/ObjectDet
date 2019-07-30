@@ -3,12 +3,12 @@ model = dict(
     type='FasterRCNN',
     pretrained=['torchvision://resnet50', 'torchvision://resnet18'],
     backbone=dict(
-        type='DeShNet',
-        depth=50,
+        type='DSNet',
+        depth=('s3', 's1'),
         num_stages=4,
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
-        style='pytorch', with_cp=True),
+        style='pytorch', with_cp=False),
     neck=dict(
         type='FPN',
         in_channels=[64, 128, 256, 512, ],
@@ -112,8 +112,8 @@ data = dict(
     workers_per_gpu=2,
     train=dict(
         type=dataset_type,
-        ann_file=data_root + 'annotations/instances_val2017.json',
-        img_prefix=data_root + 'val2017/',
+        ann_file=data_root +  'annotations/instances_train2017.json',
+        img_prefix=data_root + 'train2017/',
         img_scale=(1333*0.5, 800*0.5),desh=2,
         img_norm_cfg=img_norm_cfg,
         size_divisor=32,
