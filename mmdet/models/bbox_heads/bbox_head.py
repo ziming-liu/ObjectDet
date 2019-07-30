@@ -111,7 +111,6 @@ class BBoxHead(nn.Module):
              size_labels_weights,
              bbox_targets,
              bbox_weights,
-             #adv_score=None,
              reduction_override=None):
         losses = dict()
         if cls_score is not None:
@@ -136,7 +135,7 @@ class BBoxHead(nn.Module):
                 bbox_weights[pos_inds],
                 avg_factor=bbox_targets.size(0),
                 reduction_override=reduction_override)
-        if adv_score is not None:# must be negtive loss
+        if adv_score is not None and self.with_adv:# must be negtive loss
             losses['loss_fc_adv'] = 1 /  self.loss_adv(
                 score=adv_score.view(-1).float(),
                 label=size_labels.float(),

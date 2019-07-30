@@ -159,15 +159,15 @@ class ConvFCBBoxHead(BBoxHead):
             x_cls = x_cls.view(x_cls.size(0), -1)
         for fc in self.cls_fcs:
             x_cls = self.relu(fc(x_cls))
-
-        for conv in self.adv_convs:
-            x_adv = conv(x_adv)
-        if x_adv.dim() > 2:
-            if self.with_avg_pool:
-                x_adv = self.avg_pool(x_adv)
-            x_adv = x_adv.view(x_adv.size(0), -1)
-        for fc in self.adv_fcs:
-            x_adv = self.relu(fc(x_adv))
+        if self.with_adv:
+            for conv in self.adv_convs:
+                x_adv = conv(x_adv)
+            if x_adv.dim() > 2:
+                if self.with_avg_pool:
+                    x_adv = self.avg_pool(x_adv)
+                x_adv = x_adv.view(x_adv.size(0), -1)
+            for fc in self.adv_fcs:
+                x_adv = self.relu(fc(x_adv))
 
         for conv in self.reg_convs:
             x_reg = conv(x_reg)
