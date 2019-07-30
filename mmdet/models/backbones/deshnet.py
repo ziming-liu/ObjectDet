@@ -573,7 +573,7 @@ class DSNet(nn.Module):
         num_s = len(self.depth)
         n_inputs = []
         n_inputs.append(input)# big to small
-        for _ in range(num_s):
+        for _ in range(num_s-1):
             n_inputs.append(F.interpolate(n_inputs[-1],scale_factor=0.5))
         outs = []
         tem_outs = [[] for _ in range(num_s)]
@@ -597,14 +597,14 @@ class DSNet(nn.Module):
                 #print(x.shape)
                 layer = getattr(self,self.streams[lv][i])
                 x = layer(x)
-                """ 
-                if lv!=0:
+
+                if lv!=0 and (i==3 or i==4):
                     #print("x shape {}".format(x.shape))
                     #print("lower shape {}".format(tem_outs[lv-1][i].shape))
                     fusing_Layer = getattr(self,self.fusing_layers[lv-1][stage_idx])
                     tran = fusing_Layer(tem_outs[lv - 1][i])
                     x = x + F.interpolate(tran,scale_factor=2)
-                """
+
                 tem_outs[lv].append(x)
                 if lv==num_s-1 and stage_idx<self.num_stages:
                         outs.append(x)
