@@ -549,7 +549,7 @@ class DSNet(nn.Module):
         relu = nn.ReLU(inplace=True)
         maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
 
-        pre = nn.Sequential([conv1,norm1,relu,maxpool])
+        pre = nn.Sequential(conv1,norm1,relu,maxpool)
         pre_block_name = 'pre_'+postfix
         self.add_module(pre_block_name,pre)
         return pre_block_name
