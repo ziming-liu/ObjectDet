@@ -114,7 +114,7 @@ data = dict(
         type=dataset_type,
         ann_file=data_root + 'annotations/instances_val2017.json',
         img_prefix=data_root + 'val2017/',
-        img_scale=(1333, 800),
+        img_scale=(1333*1.5, 800*1.5),
         img_norm_cfg=img_norm_cfg,
         size_divisor=64,
         flip_ratio=0.5,
@@ -125,7 +125,7 @@ data = dict(
         type=dataset_type,
         ann_file=data_root + 'annotations/instances_val2017.json',
         img_prefix=data_root + 'val2017/',
-        img_scale=(1333,800),
+        img_scale=(1333*1.5,800*1.5),
         img_norm_cfg=img_norm_cfg,
         size_divisor=64,
         flip_ratio=0,
@@ -144,7 +144,7 @@ data = dict(
         with_label=False,
         test_mode=True))
 # optimizer
-optimizer = dict(type='SGD', lr=0.001, momentum=0.9, weight_decay=0.0001)
+optimizer = dict(type='SGD', lr=0.02, momentum=0.9, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=dict(max_norm=20, norm_type=2))
 # learning policy
 lr_config = dict(
