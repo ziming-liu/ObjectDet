@@ -383,7 +383,7 @@ def make_res_layer(block,
 
 
 @BACKBONES.register_module
-class DeShNet(nn.Module):
+class DSNet(nn.Module):
     """deep shallow backbone.
 
     Args:
@@ -434,7 +434,7 @@ class DeShNet(nn.Module):
                  stage_with_gen_attention=((), (), (), ()),
                  with_cp=False,
                  zero_init_residual=True):
-        super(DeShNet, self).__init__()
+        super(DSNet, self).__init__()
         if depth not in self.arch_settings:
             raise KeyError('invalid depth {} for resnet'.format(depth))
         self.depth = depth
