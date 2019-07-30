@@ -625,7 +625,9 @@ class DSNet(nn.Module):
                     tran = fusing_Layer(tem_outs[lv - 1][i])
                     x = x + F.interpolate(tran,scale_factor=2)
                 tem_outs[lv].append(x)
-        return tuple(tem_outs[-1])
+                if lv==num_s-1 and stage_idx<self.num_stages:
+                        outs.append(x)
+        return tuple(outs)
 
     def train(self, mode=True):
         super(DSNet, self).train(mode)
