@@ -596,6 +596,7 @@ class DSNet(nn.Module):
         for lv in range(num_s):
             x = n_inputs[num_s - 1 - lv]
             pre = getattr(self, self.streams[lv][0])
+            print(pre)
             x = pre(x)
             tem_outs[lv].append(x)
 
