@@ -597,12 +597,14 @@ class DSNet(nn.Module):
                 #print(x.shape)
                 layer = getattr(self,self.streams[lv][i])
                 x = layer(x)
+                """ 
                 if lv!=0:
                     #print("x shape {}".format(x.shape))
                     #print("lower shape {}".format(tem_outs[lv-1][i].shape))
                     fusing_Layer = getattr(self,self.fusing_layers[lv-1][stage_idx])
                     tran = fusing_Layer(tem_outs[lv - 1][i])
                     x = x + F.interpolate(tran,scale_factor=2)
+                """
                 tem_outs[lv].append(x)
                 if lv==num_s-1 and stage_idx<self.num_stages:
                         outs.append(x)
