@@ -589,16 +589,17 @@ class DSNet(nn.Module):
 
         n_inputs = []
         n_inputs.append(input)# big to small
-        n_inputs = [F.interpolate(input,scale_factor=0.5) for _ in range(len(self.depth))]
+        n_inputs = [F.interpolate(input,scale_factor=0.5) for _ in range(len(self.depth)-1)]
         num_s = len(self.depth)
         outs = []
         tem_outs = [[] for _ in range(num_s)]
         for lv in range(num_s):
             x = n_inputs[num_s - 1 - lv]
-            pre = getattr(self, self.streams[lv][0])
-            print(pre)
-            x = pre(x)
             print(x.shape)
+            pre = getattr(self, self.streams[lv][0])
+            #print(pre)
+            x = pre(x)
+
             tem_outs[lv].append(x)
 
         for lv in range(num_s):
