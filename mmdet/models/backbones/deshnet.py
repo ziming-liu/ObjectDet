@@ -586,11 +586,11 @@ class DSNet(nn.Module):
 
     def forward(self, input):
         # input is same as the backbone feature output scale
-
+        num_s = len(self.depth)
         n_inputs = []
         n_inputs.append(input)# big to small
-        n_inputs = [F.interpolate(input,scale_factor=0.5) for _ in range(len(self.depth)-1)]
-        num_s = len(self.depth)
+        for _ in range(num_s):
+            n_inputs.append(F.interpolate(n_inputs[-1],scale_factor=0.5))
         outs = []
         tem_outs = [[] for _ in range(num_s)]
         for lv in range(num_s):
