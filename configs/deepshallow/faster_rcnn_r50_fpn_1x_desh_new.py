@@ -8,7 +8,7 @@ model = dict(
         num_stages=4,
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
-        style='pytorch', with_cp=True),
+        style='pytorch', with_cp=False),
     neck=dict(
         type='FPN',
         in_channels=[64, 128, 256, 512, ],
