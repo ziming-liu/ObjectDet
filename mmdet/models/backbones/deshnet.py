@@ -508,7 +508,7 @@ class DSNet(nn.Module):
         self._freeze_stages()
 
         # interaction
-        """ 
+
         self.fusing_layers = []
         for k in range(self.num_stream-1):
             fusing_layer_s = []
@@ -529,7 +529,7 @@ class DSNet(nn.Module):
                 self.add_module(layer_name, fusing_layer)
                 fusing_layer_s.append(layer_name)
             self.fusing_layers.append(fusing_layer_s)
-        """
+
 
     @property
     def norm1(self):
@@ -611,7 +611,7 @@ class DSNet(nn.Module):
                 if lv!=0:
                     print("x shape {}".format(x.shape))
                     print("lower shape {}".format(tem_outs[lv-1][i].shape))
-                    x = x + F.interpolate(tem_outs[lv-1][i],scale_factor=2)
+                    x = x + F.interpolate(self.fusing_layers[lv][i](tem_outs[lv-1][i]),scale_factor=2)
                 tem_outs[lv].append(x)
         return tuple(tem_outs[-1])
 
