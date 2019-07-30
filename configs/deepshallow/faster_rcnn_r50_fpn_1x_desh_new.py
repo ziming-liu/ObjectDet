@@ -3,12 +3,12 @@ model = dict(
     type='FasterRCNN',
     pretrained='modelzoo://resnet50',
     backbone=dict(
-        type='ResNet',
-        depth=50,
+        type='DSNet',
+        depth=('s3', 's1'),
         num_stages=4,
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
-        style='pytorch'),
+        style='pytorch', with_cp=False),
     neck=dict(
         type='FPN',
         in_channels=[ 256, 512,1024,2048],
