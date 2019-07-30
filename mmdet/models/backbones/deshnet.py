@@ -593,13 +593,13 @@ class DSNet(nn.Module):
         num_s = len(self.depth)
         outs = []
         tem_outs = [[] for _ in range(num_s)]
-        for lv in range(len(num_s)):
+        for lv in range(num_s):
             x = n_inputs[num_s - 1 - lv]
             pre = getattr(self, self.streams[lv][0])
             x = pre(x)
             tem_outs[lv].append(x)
 
-        for lv in range(len(num_s)):
+        for lv in range(num_s):
             for i in range(1,len(self.streams[0])):
                 x = tem_outs[lv][-1]
                 layer = getattr(self,self.streams[lv][i])
