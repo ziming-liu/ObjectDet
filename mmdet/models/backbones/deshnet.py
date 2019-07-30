@@ -435,8 +435,9 @@ class DSNet(nn.Module):
                  with_cp=False,
                  zero_init_residual=True):
         super(DSNet, self).__init__()
-        if depth not in self.arch_settings:
-            raise KeyError('invalid depth {} for resnet'.format(depth))
+        for o in range(len(depth)):
+            if depth[o] not in self.arch_settings:
+                raise KeyError('invalid depth {} for resnet'.format(depth))
         self.depth = depth
         self.num_stages = num_stages
         assert num_stages >= 1 and num_stages <= 4
