@@ -621,7 +621,8 @@ class DSNet(nn.Module):
                 if lv!=0:
                     print("x shape {}".format(x.shape))
                     print("lower shape {}".format(tem_outs[lv-1][i].shape))
-                    tran = self.fusing_layers[lv-1][stage_idx](tem_outs[lv - 1][i])
+                    fusing_Layer = getattr(self,self.fusing_layers[lv-1][stage_idx])
+                    tran = fusing_Layer(tem_outs[lv - 1][i])
                     x = x + F.interpolate(tran,scale_factor=2)
                 tem_outs[lv].append(x)
         return tuple(tem_outs[-1])
