@@ -464,7 +464,7 @@ class DSNet(nn.Module):
             self.stage_blocks.append(stage_blocks[:num_stages])
             self.inplanes = 64
 
-            pre_block_name = self._make_stem_layer(postfix=depth[ii])
+            pre_block_name = self._make_stem_layer(prefix=depth[ii])
             stream.append(pre_block_name)
 
             self.res_layers = []
