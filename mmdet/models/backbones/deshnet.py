@@ -42,30 +42,6 @@ model_urls = {
 }
 
 
-def load_url_dist(url):
-    """ In distributed setting, this function only download checkpoint at
-    local rank 0 """
-    rank, world_size = get_dist_info()
-    rank = int(os.environ.get('LOCAL_RANK', rank))
-    if rank == 0:
-        checkpoint = model_zoo.load_url(url)
-    if world_size > 1:
-        torch.distributed.barrier()
-        if rank > 0:
-            checkpoint = model_zoo.load_url(url)
-    return checkpoint
-def get_torchvision_models():
-    model_urls = dict()
-    for _, name, ispkg in pkgutil.walk_packages(torchvision.models.__path__):
-        if ispkg:
-            continue
-        _zoo = import_module('torchvision.models.{}'.format(name))
-        if hasattr(_zoo, 'model_urls'):
-            _urls = getattr(_zoo, 'model_urls')
-            model_urls.update(_urls)
-    return model_urls
-
-
 class BasicBlock(nn.Module):
     expansion = 1
 
@@ -108,8 +84,8 @@ class BasicBlock(nn.Module):
         self.downsample = downsample
         self.stride = stride
         self.dilation = dilation
-        assert not with_cp
-
+        #assert not with_cp
+        self.with_cp = with_cp
     @property
     def norm1(self):
         return getattr(self, self.norm1_name)
@@ -119,21 +95,28 @@ class BasicBlock(nn.Module):
         return getattr(self, self.norm2_name)
 
     def forward(self, x):
-        identity = x
+        def _inner_forward(x):
+            identity = x
 
-        out = self.conv1(x)
-        out = self.norm1(out)
+            out = self.conv1(x)
+            out = self.norm1(out)
+            out = self.relu(out)
+
+            out = self.conv2(out)
+            out = self.norm2(out)
+
+            if self.downsample is not None:
+                identity = self.downsample(x)
+
+            out += identity
+
+
+            return out
+        if self.with_cp and x.requires_grad:
+            out = cp.checkpoint(_inner_forward,x)
+        else:
+            out = _inner_forward(x)
         out = self.relu(out)
-
-        out = self.conv2(out)
-        out = self.norm2(out)
-
-        if self.downsample is not None:
-            identity = self.downsample(x)
-
-        out += identity
-        out = self.relu(out)
-
         return out
 
 
