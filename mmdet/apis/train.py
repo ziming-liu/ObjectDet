@@ -9,7 +9,7 @@ from mmcv.parallel import MMDataParallel, MMDistributedDataParallel
 
 from mmdet import datasets
 from mmdet.core import (DistOptimizerHook, DistEvalmAPHook,
-                        CocoDistEvalRecallHook, CocoDistEvalmAPHook,
+                        CocoDistEvalRecallHook, CocoDistEvalmAPHook,CocoEvalmAPHook,CocoEvalRecallHook,
                         Fp16OptimizerHook)
 from mmdet.datasets import build_dataloader
 from mmdet.models import RPN
@@ -222,12 +222,12 @@ def _non_dist_train(model, dataset, cfg, validate=False):
         if isinstance(model.module, RPN):
             # TODO: implement recall hooks for other datasets
             runner.register_hook(
-                CocoDistEvalRecallHook(val_dataset_cfg, **eval_cfg))
+                CocoEvalRecallHook(val_dataset_cfg, **eval_cfg))
         else:
             dataset_type = getattr(datasets, val_dataset_cfg.type)
             if issubclass(dataset_type, datasets.CocoDataset):
                 runner.register_hook(
-                    CocoDistEvalmAPHook(val_dataset_cfg, **eval_cfg))
+                    CocoEvalmAPHook(val_dataset_cfg, **eval_cfg))
             else:
                 runner.register_hook(
                     DistEvalmAPHook(val_dataset_cfg, **eval_cfg))
