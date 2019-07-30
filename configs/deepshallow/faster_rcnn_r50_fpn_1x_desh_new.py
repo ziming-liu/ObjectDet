@@ -108,13 +108,13 @@ data_root = 'data/coco/'
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 data = dict(
-    imgs_per_gpu=2,
+    imgs_per_gpu=4,
     workers_per_gpu=2,
     train=dict(
         type=dataset_type,
         ann_file=data_root + 'annotations/instances_val2017.json',
         img_prefix=data_root + 'val2017/',
-        img_scale=(1333, 800),desh=1,
+        img_scale=(1766, 1300),
         img_norm_cfg=img_norm_cfg,
         size_divisor=64,
         flip_ratio=0.5,
@@ -125,7 +125,7 @@ data = dict(
         type=dataset_type,
         ann_file=data_root + 'annotations/instances_val2017.json',
         img_prefix=data_root + 'val2017/',
-        img_scale=(1333,800),desh=1,
+        img_scale=(1766,1300),
         img_norm_cfg=img_norm_cfg,
         size_divisor=64,
         flip_ratio=0,
@@ -136,7 +136,7 @@ data = dict(
         type=dataset_type,
         ann_file=data_root + 'annotations/instances_val2017.json',
         img_prefix=data_root + 'val2017/',
-        img_scale=(1333*0.5, 800*0.5),desh=1,
+        img_scale=(1333*0.5, 800*0.5),
         img_norm_cfg=img_norm_cfg,
         size_divisor=32,
         flip_ratio=0,

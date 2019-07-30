@@ -521,8 +521,6 @@ class DSNet(nn.Module):
         for k in range(self.num_stream-1):
             fusing_layer_s = []
             for l in range(self.num_stages):
-                print(self.channel_setting[self.depth[k+1]][l])
-                print(self.norm_cfg)
                 fusing_layer = nn.Sequential(
                     build_conv_layer(
                         self.conv_cfg,
@@ -604,23 +602,23 @@ class DSNet(nn.Module):
         tem_outs = [[] for _ in range(num_s)]
         for lv in range(num_s):
             x = n_inputs[num_s - 1 - lv]
-            print(x.shape)
+            #print(x.shape)
             pre = getattr(self, self.streams[lv][0])
             #print(pre)
             x = pre(x)
-            print(x.shape)
+            #print(x.shape)
             tem_outs[lv].append(x)
-        print("--------")
+        #print("--------")
         for lv in range(num_s):
             for i in range(1,len(self.streams[0])):
                 stage_idx = i-1
                 x = tem_outs[lv][i-1]
-                print(x.shape)
+                #print(x.shape)
                 layer = getattr(self,self.streams[lv][i])
                 x = layer(x)
                 if lv!=0:
-                    print("x shape {}".format(x.shape))
-                    print("lower shape {}".format(tem_outs[lv-1][i].shape))
+                    #print("x shape {}".format(x.shape))
+                    #print("lower shape {}".format(tem_outs[lv-1][i].shape))
                     fusing_Layer = getattr(self,self.fusing_layers[lv-1][stage_idx])
                     tran = fusing_Layer(tem_outs[lv - 1][i])
                     x = x + F.interpolate(tran,scale_factor=2)
