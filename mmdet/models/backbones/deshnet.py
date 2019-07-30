@@ -521,6 +521,8 @@ class DSNet(nn.Module):
         for k in range(self.num_stream-1):
             fusing_layer_s = []
             for l in range(self.num_stages):
+                print(self.channel_setting[self.depth[k+1]][l])
+                print(self.norm_cfg)
                 fusing_layer = nn.Sequential(
                     build_conv_layer(
                         self.conv_cfg,
