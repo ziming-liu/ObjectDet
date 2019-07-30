@@ -580,7 +580,7 @@ class DSNet(nn.Module):
             model_dict = self.state_dict()
             pretrained_dict = {stream_name + '_'+ k: v for k, v in pretrained_dict.items() if stream_name + '_'+ k in model_dict}  # filter out unnecessary keys
             print("for {} stream".format(stream_name))
-            print(pretrained_dict)
+            print(pretrained_dict.keys())
             model_dict.update(pretrained_dict)
             self.load_state_dict(model_dict)
 
@@ -610,7 +610,7 @@ class DSNet(nn.Module):
         return tuple(tem_outs[-1])
 
     def train(self, mode=True):
-        super(DeShNet, self).train(mode)
+        super(DSNet, self).train(mode)
         self._freeze_stages()
         if mode and self.norm_eval:
             for m in self.modules():
