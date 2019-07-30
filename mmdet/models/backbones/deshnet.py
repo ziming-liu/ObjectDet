@@ -513,6 +513,8 @@ class DSNet(nn.Module):
             self.fusing_layers.append(fusing_layer_s)
 
 
+
+
     @property
     def norm1(self):
         return getattr(self, self.norm1_name)
