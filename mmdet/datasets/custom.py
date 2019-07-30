@@ -44,7 +44,6 @@ class CustomDataset(Dataset):
                  img_norm_cfg,
                  multiscale_mode='value',
                  size_divisor=None,
-                 desh=-1,
                  proposal_file=None,
                  num_max_proposals=1000,
                  flip_ratio=0,
@@ -59,7 +58,7 @@ class CustomDataset(Dataset):
                  test_mode=False):
         # prefix of images path
         self.img_prefix = img_prefix
-        self.desh = desh
+
         # load annotations (and proposals)
         self.img_infos = self.load_annotations(ann_file)
         if proposal_file is not None:
@@ -243,8 +242,7 @@ class CustomDataset(Dataset):
                                            scale_factor, flip)
 
         ori_shape = (img_info['height'], img_info['width'], 3)
-        if self.desh != -1:
-            scale_factor = scale_factor * self.desh
+
         img_meta = dict(
             ori_shape=ori_shape,
             img_shape=img_shape,
@@ -285,8 +283,7 @@ class CustomDataset(Dataset):
             _img, img_shape, pad_shape, scale_factor = self.img_transform(
                 img, scale, flip, keep_ratio=self.resize_keep_ratio)
             _img = to_tensor(_img)
-            if self.desh !=-1:
-                scale_factor = scale_factor * self.desh
+
             _img_meta = dict(
                 ori_shape=(img_info['height'], img_info['width'], 3),
                 img_shape=img_shape,
