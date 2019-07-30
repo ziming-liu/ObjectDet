@@ -599,12 +599,13 @@ class DSNet(nn.Module):
             pre = getattr(self, self.streams[lv][0])
             #print(pre)
             x = pre(x)
-
+            print(x.shape)
             tem_outs[lv].append(x)
-
+        print("--------")
         for lv in range(num_s):
             for i in range(1,len(self.streams[0])):
-                x = tem_outs[lv][-1]
+                x = tem_outs[lv][i-1]
+                print(x.shape)
                 layer = getattr(self,self.streams[lv][i])
                 x = layer(x)
                 if lv!=0:
