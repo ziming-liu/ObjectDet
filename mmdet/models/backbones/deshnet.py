@@ -525,7 +525,7 @@ class DSNet(nn.Module):
     def norm1(self):
         return getattr(self, self.norm1_name)
 
-    def _make_stem_layer(self,postfix='s1'):
+    def _make_stem_layer(self,prefix='s1'):
         conv1 = build_conv_layer(
             self.conv_cfg,
             3,
@@ -534,22 +534,24 @@ class DSNet(nn.Module):
             stride=2,
             padding=3,
             bias=False)
+        self.add_module(prefix+'_conv1',conv1)
         norm1_name, norm1 = build_norm_layer(self.norm_cfg, 64, postfix=1)
-        #self.add_module(norm1_name, norm1)
-        relu = nn.ReLU(inplace=True)
-        maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        self.add_module(prefix+'_'+norm1_name, norm1)
+        self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
 
-        pre = nn.Sequential(conv1,norm1,relu,maxpool)
-        pre_block_name = 'pre_'+postfix
-        self.add_module(pre_block_name,pre)
-        return pre_block_name
+        #pre = nn.Sequential(conv1,norm1,relu,maxpool)
+        #pre_block_name = 'pre_'+postfix
+        #self.add_module(pre_block_name,pre)
+        return [prefix+'_conv1',prefix+'_'+norm1_name]
 
     def _freeze_stages(self):
         if self.frozen_stages >= 0:
             for jj in range(len(self.streams)):
-                pre = getattr(self,self.streams[jj][0])
-                pre[1].eval()
-                for m in [pre[0], pre[1]]:
+                conv = getattr(self,self.streams[jj][0][0])
+                norm = getattr(self,self.streams[jj][0][1])
+                norm.eval()
+                for m in [conv,norm]:
                     for param in m.parameters():
                         param.requires_grad = False
         for jj in range(len(self.depth)):
@@ -586,9 +588,13 @@ class DSNet(nn.Module):
         for lv in range(num_s):
             x = n_inputs[num_s - 1 - lv]
             #print(x.shape)
-            pre = getattr(self, self.streams[lv][0])
+            conv = getattr(self, self.streams[lv][0][0])
+            norm = getattr(self,self.streams[lv][0][1])
             #print(pre)
-            x = pre(x)
+            x = conv(x)
+            x = norm(x)
+            x = self.relu(x)
+            x = self.maxpool(x)
             #print(x.shape)
             tem_outs[lv].append(x)
         #print("--------")
