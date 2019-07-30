@@ -414,6 +414,13 @@ class DSNet(nn.Module):
         's4': (Bottleneck, (3, 4, 23, 3)),
         's5': (Bottleneck, (3, 8, 36, 3))
     }
+    channel_setting = {
+        's1': (64,128,256,512),
+        's2': (64,128,256,512),
+        's3': (256,512,1024,2048),
+        's4': (256,512,1024,2048),
+        's5': (256,512,1024,2048),
+    }
 
     def __init__(self,
                  depth=('s1','s3'),
@@ -510,21 +517,21 @@ class DSNet(nn.Module):
         # interaction
 
         self.fusing_layers = []
+
         for k in range(self.num_stream-1):
             fusing_layer_s = []
             for l in range(self.num_stages):
                 fusing_layer = nn.Sequential(
                     build_conv_layer(
                         self.conv_cfg,
-                        self.stage_blocks[k][l],
-                        self.stage_blocks[k+1][l],
+                        self.channel_setting[self.depth[k]][l],
+                        self.channel_setting[self.depth[k+1]][l],
                         kernel_size=1,
                         stride=1,
                         padding=0,
                         bias=False),
-                    build_norm_layer(self.norm_cfg, self.stage_blocks[k+1][l])[1],
-                    nn.Upsample(
-                        scale_factor=2, mode='nearest'))
+                    build_norm_layer(self.norm_cfg, self.channel_setting[self.depth[k+1]][l]),
+                    )
                 layer_name = self.depth[k]+'_'+self.depth[k+1]+'_fusing_layer{}'.format(l + 1)
                 self.add_module(layer_name, fusing_layer)
                 fusing_layer_s.append(layer_name)
@@ -604,6 +611,7 @@ class DSNet(nn.Module):
         print("--------")
         for lv in range(num_s):
             for i in range(1,len(self.streams[0])):
+                stage_idx = i-1
                 x = tem_outs[lv][i-1]
                 print(x.shape)
                 layer = getattr(self,self.streams[lv][i])
@@ -611,7 +619,7 @@ class DSNet(nn.Module):
                 if lv!=0:
                     print("x shape {}".format(x.shape))
                     print("lower shape {}".format(tem_outs[lv-1][i].shape))
-                    x = x + F.interpolate(self.fusing_layers[lv][i](tem_outs[lv-1][i]),scale_factor=2)
+                    x = x + F.interpolate(self.fusing_layers[lv-1][stage_idx](tem_outs[lv-1][i]),scale_factor=2)
                 tem_outs[lv].append(x)
         return tuple(tem_outs[-1])
 
