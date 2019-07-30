@@ -254,7 +254,7 @@ class CocoEvalmAPHook(EvalHook):
             cocoDt = cocoGt.loadRes(result_files[res_type])
             iou_type = res_type
             cocoEval = COCOeval(cocoGt, cocoDt, iou_type)
-            cocoEval.params.imgIds = imgIds[:1000]
+            cocoEval.params.imgIds = imgIds
             cocoEval.evaluate()
             cocoEval.accumulate()
             cocoEval.summarize()
