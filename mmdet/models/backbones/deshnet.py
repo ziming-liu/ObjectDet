@@ -556,7 +556,7 @@ class DSNet(nn.Module):
     def init_weights(self, pretrained=None):
         if pretrained is None:
             print("no pretrain params")
-        for ii,each_pretrain in enumerate(pretrained):
+        for ii in range(len(self.depth)):
             stream_name = self.depth[ii]
             url = model_urls[self.depth[ii]]
             #http = {'url': 'http://data.lip6.fr/cadene/pretrainedmodels/dpn92_extra-b040e4a9b.pth'}
