@@ -29,7 +29,7 @@ class DistEvalHook(Hook):
                     type(dataset)))
         self.interval = interval
 
-    def after_train_iter(self, runner):
+    def after_train_epoch(self, runner):
         if not self.every_n_epochs(runner, self.interval):
             return
         runner.model.eval()
@@ -183,7 +183,7 @@ class EvalHook(Hook):
                     type(dataset)))
         self.interval = interval
 
-    def after_train_iter(self, runner):
+    def after_train_epoch(self, runner):
         if not self.every_n_epochs(runner, self.interval):
             return
         runner.model.eval()
