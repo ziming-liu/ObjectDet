@@ -608,8 +608,8 @@ class DSNet(nn.Module):
                 tem_outs[lv].append(x)
                 if lv==num_s-1 and stage_idx<self.num_stages:
                         outs.append(x)
-        for lv in range(num_s-1):
-            outs.append(tem_outs[lv][-1])
+        #for lv in range(num_s-1):
+        #    outs.append(tem_outs[lv][-1])
         return tuple(outs)
 
     def train(self, mode=True):
