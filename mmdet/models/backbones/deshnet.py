@@ -598,6 +598,7 @@ class DSNet(nn.Module):
             pre = getattr(self, self.streams[lv][0])
             print(pre)
             x = pre(x)
+            print(x.shape)
             tem_outs[lv].append(x)
 
         for lv in range(num_s):
@@ -607,7 +608,7 @@ class DSNet(nn.Module):
                 x = layer(x)
                 if lv!=0:
                     print("x shape {}".format(x.shape))
-                    print("lower shape {}".format(tem_outs[lv-1][i]))
+                    print("lower shape {}".format(tem_outs[lv-1][i].shape))
                     x = x + F.interpolate(tem_outs[lv-1][i],scale_factor=2)
                 tem_outs[lv].append(x)
         return tuple(tem_outs[-1])
