@@ -29,6 +29,17 @@ from mmdet.models.plugins import GeneralizedAttention
 
 from ..registry import BACKBONES
 from ..utils import build_conv_layer, build_norm_layer
+model_urls = {
+    's1': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
+    's2': 'https://download.pytorch.org/models/resnet34-333f7ec4.pth',
+    's3': 'https://download.pytorch.org/models/resnet50-19c8e357.pth',
+    'resnet101': 'https://download.pytorch.org/models/resnet101-5d3b4d8f.pth',
+    'resnet152': 'https://download.pytorch.org/models/resnet152-b121ed2d.pth',
+    'resnext50_32x4d': 'https://download.pytorch.org/models/resnext50_32x4d-7cdf4587.pth',
+    'resnext101_32x8d': 'https://download.pytorch.org/models/resnext101_32x8d-8ba56ff5.pth',
+    'wide_resnet50_2': 'https://download.pytorch.org/models/wide_resnet50_2-95faca4d.pth',
+    'wide_resnet101_2': 'https://download.pytorch.org/models/wide_resnet101_2-32ee1156.pth',
+}
 
 
 def load_url_dist(url):
@@ -397,15 +408,15 @@ class DeShNet(nn.Module):
     """
 
     arch_settings = {
-        18: (BasicBlock, (2, 2, 2, 2)),
-        34: (BasicBlock, (3, 4, 6, 3)),
-        50: (Bottleneck, (3, 4, 6, 3)),
-        101: (Bottleneck, (3, 4, 23, 3)),
-        152: (Bottleneck, (3, 8, 36, 3))
+        's1': (BasicBlock, (2, 2, 2, 2)),
+        's2': (BasicBlock, (3, 4, 6, 3)),
+        's3': (Bottleneck, (3, 4, 6, 3)),
+        's4': (Bottleneck, (3, 4, 23, 3)),
+        's5': (Bottleneck, (3, 8, 36, 3))
     }
 
     def __init__(self,
-                 depth,
+                 depth=('s1','s3'),
                  num_stages=4,
                  strides=(1, 2, 2, 2),
                  dilations=(1, 1, 1, 1),
@@ -450,128 +461,81 @@ class DeShNet(nn.Module):
         if gcb is not None:
             assert len(stage_with_gcb) == num_stages
         self.zero_init_residual = zero_init_residual
-        self.block, stage_blocks = self.arch_settings[depth]
-        self.stage_blocks = stage_blocks[:num_stages]
-        self.inplanes = 64
+        self.num_stream = len(depth)
+        self.blocks = []
+        self.stage_blocks = []
 
-        self._make_stem_layer()
+        self.streams = []
+        for ii in range(self.num_stream):
+            stream = []
+            block, stage_blocks = self.arch_settings[depth[ii]]
+            self.blocks.append(block)
+            self.stage_blocks.append(stage_blocks[:num_stages])
+            self.inplanes = 64
 
-        self.res_layers = []
-        for i, num_blocks in enumerate(self.stage_blocks):
-            stride = strides[i]
-            dilation = dilations[i]
-            dcn = self.dcn if self.stage_with_dcn[i] else None
-            gcb = self.gcb if self.stage_with_gcb[i] else None
-            planes = 64 * 2**i
-            res_layer = make_res_layer(
-                self.block,
-                self.inplanes,
-                planes,
-                num_blocks,
-                stride=stride,
-                dilation=dilation,
-                style=self.style,
-                with_cp=with_cp,
-                conv_cfg=conv_cfg,
-                norm_cfg=norm_cfg,
-                dcn=dcn,
-                gcb=gcb,
-                gen_attention=gen_attention,
-                gen_attention_blocks=stage_with_gen_attention[i])
-            self.inplanes = planes * self.block.expansion
-            layer_name = 'layer{}'.format(i + 1)
-            self.add_module(layer_name, res_layer)
-            self.res_layers.append(layer_name)
+            pre_block_name = self._make_stem_layer(postfix=depth[ii])
+            stream.append(pre_block_name)
 
+            self.res_layers = []
+            for i, num_blocks in enumerate(self.stage_blocks[ii]):
+                stride = strides[i]
+                dilation = dilations[i]
+                dcn = self.dcn if self.stage_with_dcn[i] else None
+                gcb = self.gcb if self.stage_with_gcb[i] else None
+                planes = 64 * 2**i
+                res_layer = make_res_layer(
+                    self.blocks[ii],
+                    self.inplanes,
+                    planes,
+                    num_blocks,
+                    stride=stride,
+                    dilation=dilation,
+                    style=self.style,
+                    with_cp=with_cp,
+                    conv_cfg=conv_cfg,
+                    norm_cfg=norm_cfg,
+                    dcn=dcn,
+                    gcb=gcb,
+                    gen_attention=gen_attention,
+                    gen_attention_blocks=stage_with_gen_attention[i])
+                self.inplanes = planes * self.blocks[ii].expansion
+                layer_name = str(self.depth[ii]) +  '_layer{}'.format(i + 1)
+                self.add_module(layer_name, res_layer)
+                self.res_layers.append(layer_name)
+            stream.extend(self.res_layers)
+            self.streams.append(stream)
         self._freeze_stages()
-        # shallow conv
-        self.depth = 18
-        self.num_stages = 4
-        assert num_stages >= 1 and num_stages <= 4
-        self.strides = strides
-        self.dilations = dilations
-        assert len(strides) == len(dilations) == num_stages
-        self.out_indices = out_indices
-        assert max(out_indices) < num_stages
-        self.style = style
-        self.frozen_stages = frozen_stages
-        self.conv_cfg = conv_cfg
-        self.norm_cfg = norm_cfg
-        self.with_cp = with_cp
-        self.norm_eval = norm_eval
-        self.dcn = dcn
-        self.stage_with_dcn = stage_with_dcn
-        if dcn is not None:
-            assert len(stage_with_dcn) == num_stages
-        self.gen_attention = gen_attention
-        self.gcb = gcb
-        self.stage_with_gcb = stage_with_gcb
-        if gcb is not None:
-            assert len(stage_with_gcb) == num_stages
-        self.zero_init_residual = zero_init_residual
-        self.block, stage_blocks = self.arch_settings[18]
-        self.stage_blocks = stage_blocks[:num_stages]
-        self.inplanes = 64
-        self._make_sh_stem_layer()
-        self.shallow_res_layers = []
-        for i, num_blocks in enumerate(self.stage_blocks):
-            stride = strides[i]
-            dilation = dilations[i]
-            dcn = self.dcn if self.stage_with_dcn[i] else None
-            gcb = self.gcb if self.stage_with_gcb[i] else None
-            planes = 64 * 2 ** i
-            res_layer = make_res_layer(
-                self.block,
-                self.inplanes,
-                planes,
-                num_blocks,
-                stride=stride,
-                dilation=dilation,
-                style=self.style,
-                with_cp=False,
-                conv_cfg=conv_cfg,
-                norm_cfg=norm_cfg,
-                dcn=dcn,
-                gcb=gcb,
-                gen_attention=gen_attention,
-                gen_attention_blocks=stage_with_gen_attention[i])
-            self.inplanes = planes * self.block.expansion
-            layer_name = 'shallow_layer{}'.format(i + 1)
-            self.add_module(layer_name, res_layer)
-            self.shallow_res_layers.append(layer_name)
-        self._sh_freeze_stages()
-
-        self.feat_dim = self.block.expansion * 64 * 2**(
-            len(self.stage_blocks) - 1)
 
         # interaction
-        deep_channels = [256,512,1024,2048]
-        shallow_channels = [64,128,256,512]
-        self.fuse_layer =[]
-        for i in  range(4):
-            fusing_layer = nn.Sequential(
-                build_conv_layer(
-                    self.conv_cfg,
-                    deep_channels[i],
-                    shallow_channels[i],
-                    kernel_size=1,
-                    stride=1,
-                    padding=0,
-                    bias=False),
-                build_norm_layer(self.norm_cfg, shallow_channels[i])[1],
-                nn.Upsample(
-                    scale_factor=2, mode='nearest'))
-            layer_name = 'fusing_layer{}'.format(i + 1)
-            self.add_module(layer_name, fusing_layer)
-            self.fuse_layer.append(fusing_layer)
-
+        """ 
+        self.fusing_layers = []
+        for k in range(self.num_stream-1):
+            fusing_layer_s = []
+            for l in range(self.num_stages):
+                fusing_layer = nn.Sequential(
+                    build_conv_layer(
+                        self.conv_cfg,
+                        self.stage_blocks[k][l],
+                        self.stage_blocks[k+1][l],
+                        kernel_size=1,
+                        stride=1,
+                        padding=0,
+                        bias=False),
+                    build_norm_layer(self.norm_cfg, self.stage_blocks[k+1][l])[1],
+                    nn.Upsample(
+                        scale_factor=2, mode='nearest'))
+                layer_name = self.depth[k]+'_'+self.depth[k+1]+'_fusing_layer{}'.format(l + 1)
+                self.add_module(layer_name, fusing_layer)
+                fusing_layer_s.append(layer_name)
+            self.fusing_layers.append(fusing_layer_s)
+        """
 
     @property
     def norm1(self):
         return getattr(self, self.norm1_name)
 
-    def _make_stem_layer(self):
-        self.conv1 = build_conv_layer(
+    def _make_stem_layer(self,postfix='s1'):
+        conv1 = build_conv_layer(
             self.conv_cfg,
             3,
             64,
@@ -579,179 +543,70 @@ class DeShNet(nn.Module):
             stride=2,
             padding=3,
             bias=False)
-        self.norm1_name, norm1 = build_norm_layer(self.norm_cfg, 64, postfix=1)
-        self.add_module(self.norm1_name, norm1)
-        self.relu = nn.ReLU(inplace=True)
-        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        norm1_name, norm1 = build_norm_layer(self.norm_cfg, 64, postfix=1)
+        #self.add_module(norm1_name, norm1)
+        relu = nn.ReLU(inplace=True)
+        maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
 
-    @property
-    def norm1_sh(self):
-        return getattr(self, self.norm1_name_sh)
-    def _make_sh_stem_layer(self):
-        self.conv1_sh = build_conv_layer(
-            self.conv_cfg,
-            3,
-            64,
-            kernel_size=7,
-            stride=2,
-            padding=3,
-            bias=False)
-        self.norm1_name_sh, norm1 = build_norm_layer(self.norm_cfg, 64, postfix=1)
-        self.add_module(self.norm1_name, norm1)
-        self.relu_sh = nn.ReLU(inplace=True)
-        self.maxpool_sh = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        pre = nn.ModuleList([conv1,norm1,relu,maxpool])
+        pre_block_name = 'pre_'+postfix
+        self.add_module(pre_block_name,pre)
+        return pre_block_name
 
     def _freeze_stages(self):
         if self.frozen_stages >= 0:
-            self.norm1.eval()
-            for m in [self.conv1, self.norm1]:
+            for jj in range(len(self.streams)):
+                pre = getattr(self,self.streams[jj][0])
+                pre[1].eval()
+                for m in [pre[0], pre[1]]:
+                    for param in m.parameters():
+                        param.requires_grad = False
+        for jj in range(len(self.depth)):
+            for i in range(1, self.frozen_stages + 1):
+                m = getattr(self, self.depth[jj]+'_layer{}'.format(i))
+                m.eval()
                 for param in m.parameters():
                     param.requires_grad = False
-
-        for i in range(1, self.frozen_stages + 1):
-            m = getattr(self, 'layer{}'.format(i))
-            m.eval()
-            for param in m.parameters():
-                param.requires_grad = False
-
-    def _sh_freeze_stages(self):
-        if self.frozen_stages >= 0:
-            self.norm1.eval()
-            for m in [self.conv1, self.norm1]:
-                for param in m.parameters():
-                    param.requires_grad = False
-
-        for i in range(1, self.frozen_stages + 1):
-            m = getattr(self, 'shallow_layer{}'.format(i))
-            m.eval()
-            for param in m.parameters():
-                param.requires_grad = False
 
     def init_weights(self, pretrained=None):
-        if isinstance(pretrained, list):
-            logger = logging.getLogger()
-            filename = pretrained[0]
-            if filename.startswith('modelzoo://'):
-                warnings.warn('The URL scheme of "modelzoo://" is deprecated, please '
-                              'use "torchvision://" instead')
-                model_urls = get_torchvision_models()
-                model_name = filename[11:]
-                checkpoint = load_url_dist(model_urls[model_name])
-            elif filename.startswith('torchvision://'):
-                model_urls = get_torchvision_models()
-                model_name = filename[14:]
-                checkpoint = load_url_dist(model_urls[model_name])
-            elif filename.startswith('open-mmlab://'):
-                model_name = filename[13:]
-                checkpoint = load_url_dist(open_mmlab_model_urls[model_name])
-            elif filename.startswith(('http://', 'https://')):
-                checkpoint = load_url_dist(filename)
-            else:
-                if not osp.isfile(filename):
-                    raise IOError('{} is not a checkpoint file'.format(filename))
-                checkpoint = torch.load(filename, map_location=map_location)
-            #print(checkpoint.keys)
-            #state_dict = {'deep_'+k : v for k,v in checkpoint.items() if 'layer' in k}
-            #print(state_dict.keys())
-            # load state_dict
-            # get state_dict from checkpoint
-            if isinstance(checkpoint, OrderedDict):
-                state_dict = checkpoint
-            elif isinstance(checkpoint, dict) and 'state_dict' in checkpoint:
-                state_dict = checkpoint['state_dict']
-            else:
-                raise RuntimeError(
-                    'No state_dict found in checkpoint file {}'.format(filename))
-            # strip prefix of state_dict
-            if list(state_dict.keys())[0].startswith('module.'):
-                state_dict = {k[7:]: v for k, v in checkpoint['state_dict'].items()}
-            if hasattr(self, 'module'):
-                load_state_dict(self.module, state_dict, False, logger)
-            else:
-                load_state_dict(self, state_dict, False, logger)
-            filename = pretrained[1]
-            if filename.startswith('modelzoo://'):
-                warnings.warn('The URL scheme of "modelzoo://" is deprecated, please '
-                              'use "torchvision://" instead')
-                model_urls = get_torchvision_models()
-                model_name = filename[11:]
-                checkpoint = load_url_dist(model_urls[model_name])
-            elif filename.startswith('torchvision://'):
-                model_urls = get_torchvision_models()
-                model_name = filename[14:]
-                checkpoint = load_url_dist(model_urls[model_name])
-            elif filename.startswith('open-mmlab://'):
-                model_name = filename[13:]
-                checkpoint = load_url_dist(open_mmlab_model_urls[model_name])
-            elif filename.startswith(('http://', 'https://')):
-                checkpoint = load_url_dist(filename)
-            else:
-                if not osp.isfile(filename):
-                    raise IOError('{} is not a checkpoint file'.format(filename))
-                checkpoint = torch.load(filename, map_location=map_location)
-            if isinstance(checkpoint, OrderedDict):
-                state_dict = checkpoint
-            elif isinstance(checkpoint, dict) and 'state_dict' in checkpoint:
-                state_dict = checkpoint['state_dict']
-            else:
-                raise RuntimeError(
-                    'No state_dict found in checkpoint file {}'.format(filename))
-            # strip prefix of state_dict
-            if list(state_dict.keys())[0].startswith('module.'):
-                state_dict = {'shallow_'+k[7:]: v for k, v in checkpoint['state_dict'].items() if 'layer' in k}
-            else:
-                state_dict = {'shallow_'+k: v for k, v in checkpoint.items() if 'layer' in k}
-            if hasattr(self, 'module'):
-                load_state_dict(self.module, state_dict, False, logger)
-            else:
-                load_state_dict(self, state_dict, False, logger)
-        elif pretrained is None:
-            for m in self.modules():
-                if isinstance(m, nn.Conv2d):
-                    kaiming_init(m)
-                elif isinstance(m, (_BatchNorm, nn.GroupNorm)):
-                    constant_init(m, 1)
-
-            if self.dcn is not None:
-                for m in self.modules():
-                    if isinstance(m, Bottleneck) and hasattr(
-                            m, 'conv2_offset'):
-                        constant_init(m.conv2_offset, 0)
-
-            if self.zero_init_residual:
-                for m in self.modules():
-                    if isinstance(m, Bottleneck):
-                        constant_init(m.norm3, 0)
-                    elif isinstance(m, BasicBlock):
-                        constant_init(m.norm2, 0)
-        else:
-            raise TypeError('pretrained must be a str or None')
+        if pretrained is None:
+            print("no pretrain params")
+        for ii,each_pretrain in enumerate(pretrained):
+            stream_name = self.depth[ii]
+            url = model_urls[self.depth[ii]]
+            #http = {'url': 'http://data.lip6.fr/cadene/pretrainedmodels/dpn92_extra-b040e4a9b.pth'}
+            pretrained_dict = model_zoo.load_url(url)
+            model_dict = self.state_dict()
+            pretrained_dict = {stream_name + '_'+ k: v for k, v in pretrained_dict.items() if stream_name + '_'+ k in model_dict}  # filter out unnecessary keys
+            print("for {} stream".format(stream_name))
+            print(pretrained_dict)
+            model_dict.update(pretrained_dict)
+            self.load_state_dict(model_dict)
 
     def forward(self, input):
-        hd_input = F.interpolate(input,scale_factor=2)
-        #print(f'input={input.shape},hdinput={hd_input.shape}')
-        x = self.conv1(input)
-        x = self.norm1(x)
-        x = self.relu(x)
-        x = self.maxpool(x)
-        x_de = x
-        x = self.conv1_sh(hd_input)
-        x = self.norm1_sh(x)
-        x = self.relu_sh(x)
-        x = self.maxpool_sh(x)
-        x_sh = x
+        # input is same as the backbone feature output scale
+
+        n_inputs = []
+        n_inputs.append(input)# big to small
+        n_inputs = [F.interpolate(input,scale_factor=0.5) for _ in range(len(self.depth))]
+        num_s = len(self.depth)
         outs = []
-        for i, layer_name in enumerate(self.res_layers):
-            res_layer = getattr(self, layer_name)
-            shallow_layer = getattr(self,self.shallow_res_layers[i])
-            x_de = res_layer(x_de)
-            x_sh = shallow_layer(x_sh)
-            #print(x_de.shape)
-            #print(x_sh.shape)
-            x_sh = x_sh +  self.fuse_layer[i](x_de)
-            if i in self.out_indices:
-                outs.append(x_sh)
-        return tuple(outs)
+        tem_outs = [[] for _ in range(num_s)]
+        for lv in range(len(num_s)):
+            x = n_inputs[num_s - 1 - lv]
+            pre = getattr(self, self.streams[lv][0])
+            x = pre(x)
+            tem_outs[lv].append(x)
+
+        for lv in range(len(num_s)):
+            for i in range(1,len(self.streams[0])):
+                x = tem_outs[lv][-1]
+                layer = getattr(self,self.streams[lv][i])
+                x = layer(x)
+                if lv!=0:
+                    x = x + F.interpolate(tem_outs[lv-1][i],scale_factor=2)
+                tem_outs[lv].append(x)
+        return tuple(tem_outs[-1])
 
     def train(self, mode=True):
         super(DeShNet, self).train(mode)
