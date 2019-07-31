@@ -497,6 +497,35 @@ class BiDSNet(nn.Module):
         self.fusing_layers_de = []
         self.fusing_layers_sh = []
 
+        fusing_layer = nn.Sequential(
+            build_conv_layer(
+                self.conv_cfg,
+                64,
+                64,
+                kernel_size=1,
+                stride=1,
+                padding=0,
+                bias=False),
+            build_norm_layer(self.norm_cfg, 64)[1]
+        )
+        layer_name = 'de_fusing_layer{}'.format(0)
+        self.add_module(layer_name, fusing_layer)
+        self.fusing_layers_de.append(layer_name)
+
+        fusing_layer = nn.Sequential(
+            build_conv_layer(
+                self.conv_cfg,
+                64,
+                64,
+                kernel_size=1,
+                stride=1,
+                padding=0,
+                bias=False),
+            build_norm_layer(self.norm_cfg, 64)[1]
+        )
+        layer_name = 'sh_fusing_layer{}'.format(0)
+        self.add_module(layer_name, fusing_layer)
+        self.fusing_layers_sh.append(layer_name)
 
         for l in range(self.num_stages-1):
             fusing_layer = nn.Sequential(
@@ -675,11 +704,11 @@ class BiDSNet(nn.Module):
             if i != len(self.streams[0])-1:
                 tem_sh = xsh
                 tem_de = xde
-                de_fuse = getattr(self, self.fusing_layers_de[i-1])
+                de_fuse = getattr(self, self.fusing_layers_de[i])
                 tran = de_fuse(tem_de)
                 xsh = xsh + F.interpolate(tran, scale_factor=2)
 
-                sh_fuse = getattr(self, self.fusing_layers_sh[i-1])
+                sh_fuse = getattr(self, self.fusing_layers_sh[i])
                 tran = sh_fuse(tem_sh)
                 xde = xde + F.interpolate(tran, scale_factor=0.5)
 
