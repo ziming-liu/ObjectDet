@@ -525,7 +525,19 @@ class DSNet(nn.Module):
             layer_name = self.depth[-1]+'_out_layer{}'.format(ii + 1)
             self.add_module(layer_name, out_layer)
             self.out_layers.append(layer_name)
-
+        for ii in range(self.num_stream-2,-1,-1):
+            out_layer = nn.Sequential(build_conv_layer(self.conv_cfg,
+                                                       self.channel_setting[self.depth[ii]][-1],
+                                                       256,
+                                                       kernel_size=1,
+                                                       stride=1,
+                                                       padding=0,
+                                                       ),
+                                      build_norm_layer(self.norm_cfg, 256)[1]
+                                      )
+            layer_name = self.depth[-1] + '_out_layer{}'.format(ii + 1)
+            self.add_module(layer_name, out_layer)
+            self.out_layers.append(layer_name)
 
 
 
@@ -624,8 +636,8 @@ class DSNet(nn.Module):
                 tem_outs[lv].append(x)
                 if lv==num_s-1 and stage_idx<self.num_stages:
                         outs.append(x)
-        #for lv in range(num_s-1):
-        #    outs.append(tem_outs[lv][-1])
+        for lv in range(num_s-1):
+            outs.append(tem_outs[lv][-1])
         for ii,out in enumerate(outs):
             out_layer=  getattr(self,self.out_layers[ii])
             outs[ii] = out_layer(out)
