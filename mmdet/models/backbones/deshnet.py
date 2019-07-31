@@ -521,7 +521,7 @@ class DSNet(nn.Module):
                                          padding=0,
                                          conv_cfg=self.conv_cfg,
                                          norm_cfg=self.norm_cfg,
-                                         activation=self.activation,
+                                         activation=None,
                                          inplace=False
                                          )
             layer_name = self.depth[-1]+'_out_layer{}'.format(ii + 1)
