@@ -513,17 +513,15 @@ class DSNet(nn.Module):
             self.fusing_layers.append(fusing_layer_s)
         self.out_layers = []
         for ii in range(self.num_stages):
-            out_layer = build_conv_layer(
+            out_layer = nn.Sequential(build_conv_layer(self.conv_cfg,
                                          self.channel_setting[self.depth[-1]][ii],
                                          256,
                                          kernel_size=1,
                                          stride=1,
                                          padding=0,
-                                         conv_cfg=self.conv_cfg,
-                                         norm_cfg=self.norm_cfg,
-                                         activation=None,
-                                         inplace=False
-                                         )
+                                         ),
+                                      build_norm_layer(self.norm_cfg, self.channel_setting[self.depth[k + 1]][l])[1]
+                                      )
             layer_name = self.depth[-1]+'_out_layer{}'.format(ii + 1)
             self.add_module(layer_name, out_layer)
             self.out_layers.append(layer_name)
