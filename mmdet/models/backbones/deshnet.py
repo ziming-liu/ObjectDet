@@ -592,10 +592,11 @@ class DSNet(nn.Module):
             pretrained_dict = model_zoo.load_url(url)
             model_dict = self.state_dict()
             pretrained_dict = {stream_name + '_'+ k: v for k, v in pretrained_dict.items() if stream_name + '_'+ k in model_dict}  # filter out unnecessary keys
-            print("for {} stream".format(stream_name))
-            print(pretrained_dict.keys())
+            #print("for {} stream".format(stream_name))
+            #print(pretrained_dict.keys())
             model_dict.update(pretrained_dict)
             self.load_state_dict(model_dict)
+            print("load param for {}".format(stream_name))
 
     def forward(self, input):
         # input is same as the backbone feature output scale
