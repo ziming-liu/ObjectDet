@@ -520,7 +520,7 @@ class DSNet(nn.Module):
                                          stride=1,
                                          padding=0,
                                          ),
-                                      build_norm_layer(self.norm_cfg, self.channel_setting[self.depth[k + 1]][l])[1]
+                                      build_norm_layer(self.norm_cfg, 256)[1]
                                       )
             layer_name = self.depth[-1]+'_out_layer{}'.format(ii + 1)
             self.add_module(layer_name, out_layer)
