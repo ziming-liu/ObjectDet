@@ -535,9 +535,10 @@ class DSNet(nn.Module):
                                                        ),
                                       build_norm_layer(self.norm_cfg, 256)[1]
                                       )
-            layer_name = self.depth[-1] + '_out_layer{}'.format(ii + 1)
+            layer_name = self.depth[ii] + '_out_layer{}'.format(0)
             self.add_module(layer_name, out_layer)
             self.out_layers.append(layer_name)
+
 
 
 
