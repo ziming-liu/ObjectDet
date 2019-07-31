@@ -4,4 +4,5 @@ from .ssd_vgg import SSDVGG
 from .hrnet import HRNet
 from .deep_shallow_net import DeShNet
 from .deshnet import DSNet
-__all__ = ['ResNet', 'make_res_layer', 'ResNeXt', 'SSDVGG', 'HRNet', 'DeShNet','DSNet']
+from .bideshnet import BiDSNet
+__all__ = ['ResNet', 'make_res_layer', 'ResNeXt', 'SSDVGG', 'HRNet','BiDSNet', 'DeShNet','DSNet']

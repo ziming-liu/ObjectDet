@@ -494,26 +494,41 @@ class BiDSNet(nn.Module):
 
         # interaction
 
-        self.fusing_layers = []
+        self.fusing_layers_de = []
+        self.fusing_layers_sh = []
 
-        for k in range(self.num_stream-1):
-            fusing_layer_s = []
-            for l in range(self.num_stages):
-                fusing_layer = nn.Sequential(
-                    build_conv_layer(
-                        self.conv_cfg,
-                        self.channel_setting[self.depth[k]][l],
-                        self.channel_setting[self.depth[k+1]][l],
-                        kernel_size=1,
-                        stride=1,
-                        padding=0,
-                        bias=False),
-                    build_norm_layer(self.norm_cfg, self.channel_setting[self.depth[k+1]][l])[1]
-                    )
-                layer_name = self.depth[k]+'_'+self.depth[k+1]+'_fusing_layer{}'.format(l + 1)
-                self.add_module(layer_name, fusing_layer)
-                fusing_layer_s.append(layer_name)
-            self.fusing_layers.append(fusing_layer_s)
+
+        for l in range(self.num_stages-1):
+            fusing_layer = nn.Sequential(
+                build_conv_layer(
+                    self.conv_cfg,
+                    self.channel_setting[self.depth[0]][l],
+                    self.channel_setting[self.depth[1]][l],
+                    kernel_size=1,
+                    stride=1,
+                    padding=0,
+                    bias=False),
+                build_norm_layer(self.norm_cfg, self.channel_setting[self.depth[1]][l])[1]
+                )
+            layer_name = 'de_fusing_layer{}'.format(l + 1)
+            self.add_module(layer_name, fusing_layer)
+            self.fusing_layers_de.append(layer_name)
+
+            fusing_layer = nn.Sequential(
+                build_conv_layer(
+                    self.conv_cfg,
+                    self.channel_setting[self.depth[1]][l],
+                    self.channel_setting[self.depth[0]][l],
+                    kernel_size=1,
+                    stride=1,
+                    padding=0,
+                    bias=False),
+                build_norm_layer(self.norm_cfg, self.channel_setting[self.depth[0]][l])[1]
+            )
+            layer_name = 'sh_fusing_layer{}'.format(l + 1)
+            self.add_module(layer_name, fusing_layer)
+            self.fusing_layers_sh.append(layer_name)
+
         self.out_layers = []
         for ii in range(self.num_stages):
             out_layer = nn.Sequential(build_conv_layer(self.conv_cfg,
@@ -610,38 +625,69 @@ class BiDSNet(nn.Module):
             n_inputs.append(F.interpolate(n_inputs[-1],scale_factor=0.5))
         outs = []
         tem_outs = [[] for _ in range(num_s)]
-        for lv in range(num_s):
-            x = n_inputs[num_s - 1 - lv]
-            #print(x.shape)
-            conv = getattr(self, self.streams[lv][0][0])
-            norm = getattr(self,self.streams[lv][0][1])
-            #print(pre)
-            x = conv(x)
-            x = norm(x)
-            x = self.relu(x)
-            x = self.maxpool(x)
-            #print(x.shape)
-            tem_outs[lv].append(x)
-        #print("--------")
-        for lv in range(num_s):
-            for i in range(1,len(self.streams[0])):
-                stage_idx = i-1
-                x = tem_outs[lv][i-1]
-                #print(x.shape)
-                layer = getattr(self,self.streams[lv][i])
-                x = layer(x)
-                if lv!=0 :#and (i==3 or i==4):
-                    #print("x shape {}".format(x.shape))
-                    #print("lower shape {}".format(tem_outs[lv-1][i].shape))
-                    fusing_Layer = getattr(self,self.fusing_layers[lv-1][stage_idx])
-                    tran = fusing_Layer(tem_outs[lv - 1][i])
-                    x = x + F.interpolate(tran,scale_factor=2)
+        #for lv in range(num_s):
+        x = n_inputs[1]
+        #print(x.shape)
+        conv = getattr(self, self.streams[0][0][0])
+        norm = getattr(self,self.streams[0][0][1])
+        #print(pre)
+        x = conv(x)
+        x = norm(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+        #print(x.shape)
+        xde = x
 
-                tem_outs[lv].append(x)
-                if lv==num_s-1 and stage_idx<self.num_stages:
-                    outs.append(x)
-        for lv in range(num_s-1):
-            outs.append(tem_outs[lv][-1])
+        #print("--------")
+        x = n_inputs[0]
+        # print(x.shape)
+        conv = getattr(self, self.streams[1][0][0])
+        norm = getattr(self, self.streams[1][0][1])
+        # print(pre)
+        x = conv(x)
+        x = norm(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+        # print(x.shape)
+        xsh = x
+
+
+        for i in range(1,len(self.streams[0])):
+            if i==1:
+                tem_sh = xsh
+                tem_de = xde
+                de_fuse = getattr(self,self.fusing_layers_de[0])
+                tran = de_fuse(tem_de)
+                xsh = xsh + F.interpolate(tran,scale_factor=2)
+
+                sh_fuse = getattr(self,self.fusing_layers_sh[0])
+                tran = sh_fuse(tem_sh)
+                xde = xde + F.interpolate(tran,scale_factor=0.5)
+
+            stage_idx = i-1
+
+            #print(x.shape)
+            layer = getattr(self,self.streams[0][i])
+            xde = layer(xde)
+            layer = getattr(self, self.streams[1][i])
+            xsh = layer(xsh)
+
+            if i != len(self.streams[0])-1:
+                tem_sh = xsh
+                tem_de = xde
+                de_fuse = getattr(self, self.fusing_layers_de[i-1])
+                tran = de_fuse(tem_de)
+                xsh = xsh + F.interpolate(tran, scale_factor=2)
+
+                sh_fuse = getattr(self, self.fusing_layers_sh[i-1])
+                tran = sh_fuse(tem_sh)
+                xde = xde + F.interpolate(tran, scale_factor=0.5)
+
+
+            outs.append(xsh)
+            if i == len(self.streams[0])-1:
+                outs.append(xde)
+
         for ii,out in enumerate(outs):
             out_layer=  getattr(self,self.out_layers[ii])
             outs[ii] = out_layer(out)
