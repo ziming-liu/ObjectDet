@@ -511,6 +511,22 @@ class DSNet(nn.Module):
                 self.add_module(layer_name, fusing_layer)
                 fusing_layer_s.append(layer_name)
             self.fusing_layers.append(fusing_layer_s)
+        self.out_layers = []
+        for ii in range(self.num_stages):
+            out_layer = build_conv_layer(
+                                         self.channel_setting[self.depth[-1]][ii],
+                                         256,
+                                         kernel_size=1,
+                                         stride=1,
+                                         padding=0,
+                                         conv_cfg=self.conv_cfg,
+                                         norm_cfg=self.norm_cfg,
+                                         activation=self.activation,
+                                         inplace=False
+                                         )
+            layer_name = self.depth[-1]+'_out_layer{}'.format(ii + 1)
+            self.add_module(layer_name, out_layer)
+            self.out_layers.append(layer_name)
 
 
 
@@ -600,7 +616,7 @@ class DSNet(nn.Module):
                 layer = getattr(self,self.streams[lv][i])
                 x = layer(x)
 
-                if lv!=0 and (i==3 or i==4):
+                if lv!=0 :#and (i==3 or i==4):
                     #print("x shape {}".format(x.shape))
                     #print("lower shape {}".format(tem_outs[lv-1][i].shape))
                     fusing_Layer = getattr(self,self.fusing_layers[lv-1][stage_idx])
@@ -612,6 +628,10 @@ class DSNet(nn.Module):
                         outs.append(x)
         #for lv in range(num_s-1):
         #    outs.append(tem_outs[lv][-1])
+        for ii,out in enumerate(outs):
+            out_layer=  getattr(self,self.out_layers[ii])
+            outs[ii] = out_layer(out)
+
         return tuple(outs)
 
     def train(self, mode=True):
