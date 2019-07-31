@@ -359,7 +359,7 @@ def make_res_layer(block,
 
 
 @BACKBONES.register_module
-class DSNet(nn.Module):
+class BiDSNet(nn.Module):
     """deep shallow backbone.
 
     Args:
@@ -419,7 +419,7 @@ class DSNet(nn.Module):
                  stage_with_gen_attention=((), (), (), ()),
                  with_cp=False,
                  zero_init_residual=True):
-        super(DSNet, self).__init__()
+        super(BiDSNet, self).__init__()
         for o in range(len(depth)):
             if depth[o] not in self.arch_settings:
                 raise KeyError('invalid depth {} for resnet'.format(depth))
@@ -630,7 +630,6 @@ class DSNet(nn.Module):
                 #print(x.shape)
                 layer = getattr(self,self.streams[lv][i])
                 x = layer(x)
-
                 if lv!=0 :#and (i==3 or i==4):
                     #print("x shape {}".format(x.shape))
                     #print("lower shape {}".format(tem_outs[lv-1][i].shape))
@@ -650,7 +649,7 @@ class DSNet(nn.Module):
         return tuple(outs)
 
     def train(self, mode=True):
-        super(DSNet, self).train(mode)
+        super(BiDSNet, self).train(mode)
         self._freeze_stages()
         if mode and self.norm_eval:
             for m in self.modules():

@@ -38,12 +38,14 @@ class AnchorHead(nn.Module):
                  anchor_base_sizes=None,
                  target_means=(.0, .0, .0, .0),
                  target_stds=(1.0, 1.0, 1.0, 1.0),
+                 with_adv=False,
                  loss_cls=dict(
                      type='CrossEntropyLoss',
                      use_sigmoid=True,
                      loss_weight=1.0),
                  loss_bbox=dict(
-                     type='SmoothL1Loss', beta=1.0 / 9.0, loss_weight=1.0)):
+                     type='SmoothL1Loss', beta=1.0 / 9.0, loss_weight=1.0),
+                 loss_adv = dict(type=('AdversarialLoss'),)):
         super(AnchorHead, self).__init__()
         self.in_channels = in_channels
         self.num_classes = num_classes
@@ -55,6 +57,7 @@ class AnchorHead(nn.Module):
             anchor_strides) if anchor_base_sizes is None else anchor_base_sizes
         self.target_means = target_means
         self.target_stds = target_stds
+        self.with_adv = with_adv
 
         self.use_sigmoid_cls = loss_cls.get('use_sigmoid', False)
         self.sampling = loss_cls['type'] not in ['FocalLoss', 'GHMC']
@@ -64,6 +67,7 @@ class AnchorHead(nn.Module):
             self.cls_out_channels = num_classes
         self.loss_cls = build_loss(loss_cls)
         self.loss_bbox = build_loss(loss_bbox)
+        self.loss_adv = build_loss(loss_adv)
         self.fp16_enabled = False
 
         self.anchor_generators = []
@@ -78,15 +82,24 @@ class AnchorHead(nn.Module):
         self.conv_cls = nn.Conv2d(self.feat_channels,
                                   self.num_anchors * self.cls_out_channels, 1)
         self.conv_reg = nn.Conv2d(self.feat_channels, self.num_anchors * 4, 1)
+        if self.with_adv:
+            self.conv_adv = nn.Conv2d(self.feat_channels,
+                                      self.num_anchors * 1, 1)
 
     def init_weights(self):
         normal_init(self.conv_cls, std=0.01)
         normal_init(self.conv_reg, std=0.01)
+        if self.with_adv:
+            normal_init(self.conv_adv, std=0.01)
 
     def forward_single(self, x):
         cls_score = self.conv_cls(x)
         bbox_pred = self.conv_reg(x)
-        return cls_score, bbox_pred
+        if self.with_adv:
+            adv_score = self.conv_adv(x)
+            return cls_score, adv_score, bbox_pred
+        else:
+            return cls_score,None,bbox_pred
 
     def forward(self, feats):
         return multi_apply(self.forward_single, feats)
@@ -130,7 +143,8 @@ class AnchorHead(nn.Module):
 
         return anchor_list, valid_flag_list
 
-    def loss_single(self, cls_score, bbox_pred, labels, label_weights,
+    def loss_single(self, cls_score, adv_score, bbox_pred, labels, label_weights,
+                    size_labels, size_labels_weights,
                     bbox_targets, bbox_weights, num_total_samples, cfg):
         # classification loss
         labels = labels.reshape(-1)
@@ -148,11 +162,18 @@ class AnchorHead(nn.Module):
             bbox_targets,
             bbox_weights,
             avg_factor=num_total_samples)
-        return loss_cls, loss_bbox
+        if adv_score is not None:# must be negtive loss
+            loss_adv = 1 /  self.loss_adv(
+                score=adv_score.view(adv_score.size(0),-1).float(),
+                label=size_labels.float(),
+                weight=size_labels_weights.float())
+            return loss_cls,loss_adv, loss_bbox
+        return loss_cls,None, loss_bbox
 
     @force_fp32(apply_to=('cls_scores', 'bbox_preds'))
     def loss(self,
              cls_scores,
+             adv_scores,
              bbox_preds,
              gt_bboxes,
              gt_labels,
@@ -179,24 +200,29 @@ class AnchorHead(nn.Module):
             sampling=self.sampling)
         if cls_reg_targets is None:
             return None
-        (labels_list, label_weights_list, bbox_targets_list, bbox_weights_list,
+        (labels_list, label_weights_list, size_labels_list,size_labels_weights_list,bbox_targets_list, bbox_weights_list,
          num_total_pos, num_total_neg) = cls_reg_targets
         num_total_samples = (
             num_total_pos + num_total_neg if self.sampling else num_total_pos)
-        losses_cls, losses_bbox = multi_apply(
+        losses_cls, losses_adv, losses_bbox = multi_apply(
             self.loss_single,
             cls_scores,
+            adv_scores,
             bbox_preds,
             labels_list,
             label_weights_list,
+            size_labels_list, size_labels_weights_list,
             bbox_targets_list,
             bbox_weights_list,
             num_total_samples=num_total_samples,
             cfg=cfg)
-        return dict(loss_cls=losses_cls, loss_bbox=losses_bbox)
+        if losses_adv[0] is not None:
+            return dict(loss_cls=losses_cls, loss_adv=losses_adv,loss_bbox=losses_bbox)
+        else:
+            return dict(loss_cls=losses_cls,loss_bbox=losses_bbox)
 
     @force_fp32(apply_to=('cls_scores', 'bbox_preds'))
-    def get_bboxes(self, cls_scores, bbox_preds, img_metas, cfg,
+    def get_bboxes(self, cls_scores,adv_scores, bbox_preds, img_metas, cfg,
                    rescale=False):
         assert len(cls_scores) == len(bbox_preds)
         num_levels = len(cls_scores)
