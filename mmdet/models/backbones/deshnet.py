@@ -640,9 +640,7 @@ class DSNet(nn.Module):
         for lv in range(num_s-1):
             outs.append(tem_outs[lv][-1])
         for ii,out in enumerate(outs):
-            print(out.shape)
             out_layer=  getattr(self,self.out_layers[ii])
-            print(out_layer)
             outs[ii] = out_layer(out)
 
         return tuple(outs)
