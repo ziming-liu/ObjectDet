@@ -3,7 +3,7 @@ model = dict(
     type='RetinaNet',
     pretrained=['torchvision://resnet50','torchvision://resnet18'],
     backbone=dict(
-        type='DSNet',
+        type='DSNetv2',
         depth=('s3', 's6'),
         num_stages=4,
         out_indices=(0, 1, 2, 3),
@@ -11,7 +11,7 @@ model = dict(
         style='pytorch', with_cp=True),
     neck=dict(
         type='FPN',
-        in_channels=[64,128,256, 512,],
+        in_channels=[256,256,256,256,256],
         out_channels=256,
         start_level=1,
         add_extra_convs=True,
@@ -28,16 +28,14 @@ model = dict(
         anchor_strides=[8, 16, 32, 64, 128],
         target_means=[.0, .0, .0, .0],
         target_stds=[1.0, 1.0, 1.0, 1.0],
-        with_adv=True,
+        with_adv =True,
         loss_cls=dict(
             type='FocalLoss',
             use_sigmoid=True,
             gamma=2.0,
             alpha=0.25,
             loss_weight=1.0),
-        loss_bbox=dict(type='SmoothL1Loss', beta=0.11, loss_weight=1.0),
-        loss_adv = dict(type='AdversarialLoss',)
-    ))
+        loss_bbox=dict(type='SmoothL1Loss', beta=0.11, loss_weight=1.0)))
 # training and testing settings
 train_cfg = dict(
     assigner=dict(
@@ -61,15 +59,15 @@ data_root = 'data/coco/'
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 data = dict(
-    imgs_per_gpu=2,
+    imgs_per_gpu=3,
     workers_per_gpu=2,
     train=dict(
         type=dataset_type,
         ann_file=data_root + 'annotations/instances_train2017.json',
         img_prefix=data_root + 'train2017/',
-        img_scale=(1333*0.5, 800*0.5),desh=2,
+        img_scale=(1333*1.5, 800*1.5),
         img_norm_cfg=img_norm_cfg,
-        size_divisor=32,
+        size_divisor=64,
         flip_ratio=0.5,
         with_mask=False,
         with_crowd=False,
@@ -78,9 +76,9 @@ data = dict(
         type=dataset_type,
         ann_file=data_root + 'annotations/instances_val2017.json',
         img_prefix=data_root + 'val2017/',
-        img_scale=(1333*0.5, 800*0.5),desh=2,
+        img_scale=(1333*1.5, 800*1.5),
         img_norm_cfg=img_norm_cfg,
-        size_divisor=32,
+        size_divisor=64,
         flip_ratio=0,
         with_mask=False,
         with_crowd=False,
@@ -89,7 +87,7 @@ data = dict(
         type=dataset_type,
         ann_file=data_root + 'annotations/instances_val2017.json',
         img_prefix=data_root + 'val2017/',
-        img_scale=(1333*0.5, 800*0.5),desh=2,
+        img_scale=(1333*0.5, 800*0.5),
         img_norm_cfg=img_norm_cfg,
         size_divisor=32,
         flip_ratio=0,
