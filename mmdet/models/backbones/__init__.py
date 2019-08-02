@@ -6,4 +6,5 @@ from .deep_shallow_net import DeShNet
 from .deshnet import DSNet
 from .bideshnet import BiDSNet
 from .deshnetv2 import DSNetv2
+from .deshnet_center import DSNetcenter
 __all__ = ['ResNet', 'DSNetv2', 'make_res_layer', 'ResNeXt', 'SSDVGG', 'HRNet','BiDSNet', 'DeShNet','DSNet']
