@@ -55,8 +55,12 @@ class RPNHead(AnchorHead):
             img_metas,
             cfg,
             gt_bboxes_ignore=gt_bboxes_ignore)
-        return dict(
-            loss_rpn_cls=losses['loss_cls'], loss_rpn_bbox=losses['loss_bbox'])
+        try:
+            return dict(
+                loss_rpn_cls=losses['loss_cls'],loss_rpn_adv=losses['loss_adv'], loss_rpn_bbox=losses['loss_bbox'])
+        except:
+            return dict(
+                loss_rpn_cls=losses['loss_cls'], loss_rpn_bbox=losses['loss_bbox'])
 
     def get_bboxes_single(self,
                           cls_scores,

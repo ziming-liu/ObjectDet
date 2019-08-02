@@ -28,7 +28,8 @@ model = dict(
             gamma=2.0,
             alpha=0.25,
             loss_weight=1.0),
-        loss_bbox=dict(type='SmoothL1Loss', beta=0.11, loss_weight=1.0)))
+        loss_bbox=dict(type='SmoothL1Loss', beta=0.11, loss_weight=1.0),
+        loss_adv = dict(type='AdversarialLoss',),with_adv=True,))
 # training and testing settings
 train_cfg = dict(
     assigner=dict(
@@ -58,7 +59,7 @@ data = dict(
         type=dataset_type,
         ann_file=data_root + 'annotations/instances_train2017.json',
         img_prefix=data_root + 'train2017/',
-        img_scale=(1333*1.2, 800*1.2),
+        img_scale=(1333, 800),
         img_norm_cfg=img_norm_cfg,
         size_divisor=64,
         flip_ratio=0.5,
@@ -69,7 +70,7 @@ data = dict(
         type=dataset_type,
         ann_file=data_root + 'annotations/instances_val2017.json',
         img_prefix=data_root + 'val2017/',
-        img_scale=(1333*1.2, 800*1.2),
+        img_scale=(1333, 800),
         img_norm_cfg=img_norm_cfg,
         size_divisor=64,
         flip_ratio=0,
@@ -112,7 +113,7 @@ total_epochs = 24
 device_ids = range(8)
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/retinanet_r50_fpn_1x_deshcenter'
+work_dir = './work_dirs/retinanet_r50_fpn_1x_deshcenter_advloss'
 load_from = None#'./ckp/retinanet_r50_fpn_1x_20181125-7b0c2548.pth'
 resume_from = None
 workflow = [('train', 1)]
