@@ -558,7 +558,19 @@ class DSNetcenter(nn.Module):
             layer_name = self.depth[-1]+'_out_layer{}'.format(ii + 1)
             self.add_module(layer_name, out_layer)
             self.out_layers.append(layer_name)
-
+        for ii in range(self.num_stream-2,-1,-1):
+            out_layer = nn.Sequential(build_conv_layer(self.conv_cfg,
+                                                       self.channel_setting[self.depth[ii]][-1],
+                                                       256,
+                                                       kernel_size=1,
+                                                       stride=1,
+                                                       padding=0,
+                                                       ),
+                                      build_norm_layer(self.norm_cfg, 256)[1]
+                                      )
+            layer_name = self.depth[ii] + '_out_layer{}'.format(0)
+            self.add_module(layer_name, out_layer)
+            self.out_layers.append(layer_name)
 
 
 
