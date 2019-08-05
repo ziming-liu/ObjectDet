@@ -3,24 +3,20 @@ model = dict(
     type='FasterRCNN',
     pretrained='modelzoo://resnet50',
     backbone=dict(
-        type='ResNet',
+        type='ResNet2stream',
         depth=50,
         num_stages=4,
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
-        style='pytorch'),
-    neck=dict(
-        type='FPN',
-        in_channels=[256, 512, 1024, 2048],
-        out_channels=256,
-        num_outs=5),
+        style='pytorch',with_cp=True),
+    neck=None,
     rpn_head=dict(
         type='RPNHead',
         in_channels=256,
         feat_channels=256,
         anchor_scales=[8],
         anchor_ratios=[0.5, 1.0, 2.0],
-        anchor_strides=[4, 8, 16, 32, 64],
+        anchor_strides=[4, 8, 16, 32,],
         target_means=[.0, .0, .0, .0],
         target_stds=[1.0, 1.0, 1.0, 1.0],
         loss_cls=dict(
@@ -44,7 +40,8 @@ model = dict(
         loss_cls=dict(
             type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0),
         loss_bbox=dict(type='SmoothL1Loss', beta=1.0, loss_weight=1.0),
-        loss_adv=dict(type='AdversarialLoss', ), with_adv=True,
+        #loss_adv=dict(type='AdversarialLoss', ),
+        with_adv=False,
     ))
 # model training and testing settings
 train_cfg = dict(
@@ -149,7 +146,7 @@ lr_config = dict(
     warmup='linear',
     warmup_iters=500,
     warmup_ratio=1.0 / 3,
-    step=[17,22])
+    step=[8,11])
 checkpoint_config = dict(interval=1)
 # yapf:disable
 log_config = dict(
@@ -160,10 +157,10 @@ log_config = dict(
     ])
 # yapf:enable
 # runtime settings
-total_epochs = 24
+total_epochs = 12
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/faster_rcnn_r50_fpn_2x_adv'
+work_dir = './work_dirs/faster_rcnn_r50_fpn_1x_2stream'
 load_from = None
-resume_from = './work_dirs/faster_rcnn_r50_fpn_1x/epoch_8.pth'
+resume_from = None
 workflow = [('train', 1)]

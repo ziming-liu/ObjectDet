@@ -1,4 +1,5 @@
 import os.path as osp
+from logging import log
 
 import mmcv
 import numpy as np
@@ -58,9 +59,11 @@ class CustomDataset(Dataset):
                  test_mode=False):
         # prefix of images path
         self.img_prefix = img_prefix
-
+        # in test mode or not
+        self.test_mode = test_mode
         # load annotations (and proposals)
         self.img_infos = self.load_annotations(ann_file)
+        #.img_infos = self.img_infos[:int(0.1 * len(self.img_infos))]
         if proposal_file is not None:
             self.proposals = self.load_proposals(proposal_file)
         else:
@@ -71,7 +74,7 @@ class CustomDataset(Dataset):
             self.img_infos = [self.img_infos[i] for i in valid_inds]
             if self.proposals is not None:
                 self.proposals = [self.proposals[i] for i in valid_inds]
-        #self.img_infos = self.img_infos[:int(0.5*len(self.img_infos))]
+
         # (long_edge, short_edge) or [(long1, short1), (long2, short2), ...]
         self.img_scales = img_scale if isinstance(img_scale,
                                                   list) else [img_scale]
@@ -105,8 +108,7 @@ class CustomDataset(Dataset):
         self.seg_prefix = seg_prefix
         # rescale factor for segmentation maps
         self.seg_scale_factor = seg_scale_factor
-        # in test mode or not
-        self.test_mode = test_mode
+
 
         # set group flag for the sampler
         if not self.test_mode:

@@ -144,6 +144,7 @@ class CocoDistEvalmAPHook(DistEvalHook):
                      ] if runner.model.module.with_mask else ['bbox']
         cocoGt = self.dataset.coco
         imgIds = cocoGt.getImgIds()
+        #imgIds = imgIds[:int(0.5*len(imgIds))]
         for res_type in res_types:
             print(result_files[res_type])
             cocoDt = cocoGt.loadRes(result_files[res_type])
