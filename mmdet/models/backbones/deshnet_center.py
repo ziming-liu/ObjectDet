@@ -451,98 +451,77 @@ class DSNetcenter(nn.Module):
         self.blocks = []
         self.stage_blocks = []
 
-        self.streams = []
-        for ii in range(self.num_stream):
-            stream = []
-            block, stage_blocks = self.arch_settings[depth[ii]]
-            self.blocks.append(block)
-            self.stage_blocks.append(stage_blocks[:num_stages])
-            self.inplanes = 64
+        self.deep_streams = []
+        block, stage_blocks = self.arch_settings[depth[0]]
+        self.blocks.append(block)
+        self.stage_blocks.append(stage_blocks[:num_stages])
+        self.inplanes = 64
+        pre_block_name = self._make_stem_layer(prefix=depth[0])
+        self.deep_streams.append(pre_block_name)
+        self.res_layers = []
+        for i, num_blocks in enumerate(self.stage_blocks[0]):
+            stride = strides[i]
+            dilation = dilations[i]
+            dcn = self.dcn if self.stage_with_dcn[i] else None
+            gcb = self.gcb if self.stage_with_gcb[i] else None
+            planes = 64 * 2**i
+            res_layer = make_res_layer(
+                self.blocks[0],
+                self.inplanes,
+                planes,
+                num_blocks,
+                stride=stride,
+                dilation=dilation,
+                style=self.style,
+                with_cp=with_cp,
+                conv_cfg=conv_cfg,
+                norm_cfg=norm_cfg,
+                dcn=dcn,
+                gcb=gcb,
+                gen_attention=gen_attention,
+                gen_attention_blocks=stage_with_gen_attention[i])
+            self.inplanes = planes * self.blocks[0].expansion
+            layer_name = str(self.depth[0]) +  '_layer{}'.format(i + 1)
+            self.add_module(layer_name, res_layer)
+            self.res_layers.append(layer_name)
+        self.deep_streams.extend(self.res_layers)
 
-            pre_block_name = self._make_stem_layer(prefix=depth[ii])
-            stream.append(pre_block_name)
+        self.shallow_streams = []
+        block, stage_blocks = self.arch_settings[depth[0]]
+        self.blocks.append(block)
+        self.stage_blocks.append(stage_blocks[:num_stages])
+        self.inplanes = 64
+        pre_block_name = self._make_stem_layer(prefix=depth[0])
+        self.shallow_streams.append(pre_block_name)
+        self.res_layers = []
+        for i, num_blocks in enumerate(self.stage_blocks[0]):
+            stride = strides[i]
+            dilation = dilations[i]
+            dcn = self.dcn if self.stage_with_dcn[i] else None
+            gcb = self.gcb if self.stage_with_gcb[i] else None
+            planes = 64 * 2 ** i
+            res_layer = make_res_layer(
+                self.blocks[0],
+                self.inplanes,
+                planes,
+                num_blocks,
+                stride=stride,
+                dilation=dilation,
+                style=self.style,
+                with_cp=with_cp,
+                conv_cfg=conv_cfg,
+                norm_cfg=norm_cfg,
+                dcn=dcn,
+                gcb=gcb,
+                gen_attention=gen_attention,
+                gen_attention_blocks=stage_with_gen_attention[i])
+            self.inplanes = planes * self.blocks[0].expansion
+            layer_name = str(self.depth[0]) + '_layer{}'.format(i + 1)
+            self.add_module(layer_name, res_layer)
+            self.res_layers.append(layer_name)
+        self.shallow_streams.extend(self.res_layers)
 
-            self.res_layers = []
-            for i, num_blocks in enumerate(self.stage_blocks[ii]):
-                stride = strides[i]
-                dilation = dilations[i]
-                dcn = self.dcn if self.stage_with_dcn[i] else None
-                gcb = self.gcb if self.stage_with_gcb[i] else None
-                planes = 64 * 2**i
-                res_layer = make_res_layer(
-                    self.blocks[ii],
-                    self.inplanes,
-                    planes,
-                    num_blocks,
-                    stride=stride,
-                    dilation=dilation,
-                    style=self.style,
-                    with_cp=with_cp,
-                    conv_cfg=conv_cfg,
-                    norm_cfg=norm_cfg,
-                    dcn=dcn,
-                    gcb=gcb,
-                    gen_attention=gen_attention,
-                    gen_attention_blocks=stage_with_gen_attention[i])
-                self.inplanes = planes * self.blocks[ii].expansion
-                layer_name = str(self.depth[ii]) +  '_layer{}'.format(i + 1)
-                self.add_module(layer_name, res_layer)
-                self.res_layers.append(layer_name)
-            stream.extend(self.res_layers)
-            self.streams.append(stream)
         self._freeze_stages()
-
-        # interaction
-
-        self.fusing_layers_de = []
-        self.fusing_layers_sh = []
-
-        fusing_layer = nn.Sequential(
-            build_conv_layer(
-                self.conv_cfg,
-                64,
-                64,
-                kernel_size=1,
-                stride=1,
-                padding=0,
-                bias=False),
-            build_norm_layer(self.norm_cfg, 64)[1]
-        )
-        layer_name = 'de_fusing_layer{}'.format(0)
-        self.add_module(layer_name, fusing_layer)
-        self.fusing_layers_de.append(layer_name)
-
-        fusing_layer = nn.Sequential(
-            build_conv_layer(
-                self.conv_cfg,
-                64,
-                64,
-                kernel_size=1,
-                stride=1,
-                padding=0,
-                bias=False),
-            build_norm_layer(self.norm_cfg, 64)[1]
-        )
-        layer_name = 'sh_fusing_layer{}'.format(0)
-        self.add_module(layer_name, fusing_layer)
-        self.fusing_layers_sh.append(layer_name)
-
-        for l in range(self.num_stages):
-            fusing_layer = nn.Sequential(
-                build_conv_layer(
-                    self.conv_cfg,
-                    self.channel_setting[self.depth[0]][l],
-                    self.channel_setting[self.depth[1]][l],
-                    kernel_size=1,
-                    stride=1,
-                    padding=0,
-                    bias=False),
-                build_norm_layer(self.norm_cfg, self.channel_setting[self.depth[1]][l])[1]
-                )
-            layer_name = 'de_fusing_layer{}'.format(l + 1)
-            self.add_module(layer_name, fusing_layer)
-            self.fusing_layers_de.append(layer_name)
-
 
         self.out_layers = []
         for ii in range(self.num_stages):
@@ -558,9 +537,6 @@ class DSNetcenter(nn.Module):
             layer_name = self.depth[-1]+'_out_layer{}'.format(ii + 1)
             self.add_module(layer_name, out_layer)
             self.out_layers.append(layer_name)
-
-
-
 
 
     @property
@@ -622,52 +598,39 @@ class DSNetcenter(nn.Module):
     def forward(self, input):
         # input is same as the backbone feature output scale
         num_s = len(self.depth)
-        n_inputs = []
-        n_inputs.append(input)# big to small
-        for _ in range(num_s-1):
-            n_inputs.append(F.interpolate(n_inputs[-1],scale_factor=0.5))
-        outs = []
-        tem_outs = [[] for _ in range(num_s)]
-        #for lv in range(num_s):
-        x = n_inputs[1]
-        #print(x.shape)
-        conv = getattr(self, self.streams[0][0][0])
-        norm = getattr(self,self.streams[0][0][1])
-        #print(pre)
+        sh = input
+        de = F.interpolate(sh.clone(),scale_factor=0.5)
+
+        x = de
+        conv = getattr(self, self.deep_streams[0][0])
+        norm = getattr(self,self.deep_streams[0][1])
         x = conv(x)
         x = norm(x)
         x = self.relu(x)
         x = self.maxpool(x)
-        #print(x.shape)
         xde = x
 
-        #print("--------")
-        x = n_inputs[0]
-        # print(x.shape)
-        conv = getattr(self, self.streams[1][0][0])
-        norm = getattr(self, self.streams[1][0][1])
-        # print(pre)
+        x = sh
+        conv = getattr(self, self.shallow_streams[0][0])
+        norm = getattr(self, self.shallow_streams[0][1])
         x = conv(x)
         x = norm(x)
         x = self.relu(x)
         x = self.maxpool(x)
-        # print(x.shape)
         xsh = x
 
         de_outs = []
-        for i in range(1,len(self.streams[0])):
-            layer_name = self.streams[0][i]
+        for i in range(1,len(self.deep_streams)):
+            layer_name = self.deep_streams[i]
             res_layer = getattr(self, layer_name)
             xde = res_layer(xde)
-            #if i in self.out_indices:
             de_outs.append(xde)
 
         sh_outs = []
-        for i in range(1, len(self.streams[1])):
-            layer_name = self.streams[1][i]
+        for i in range(1, len(self.shallow_streams)):
+            layer_name = self.shallow_streams[i]
             res_layer = getattr(self, layer_name)
             xsh = res_layer(xsh)
-            #if i in self.out_indices:
             sh_outs.append(xsh)
 
         outs = []
