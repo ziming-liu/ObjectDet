@@ -539,7 +539,7 @@ class ResNet2stream(nn.Module):
 
     def forward(self, x):
         inputA = x.clone()
-        inputB = F.interpolate(x.clone(),scale_factor=1)
+        inputB = F.interpolate(x.clone(),scale_factor=0.5)
         outsA = []
         outsB = []
         outs  = []
@@ -569,7 +569,7 @@ class ResNet2stream(nn.Module):
 
         for i, lateral_layer in enumerate(self.lateral_convs):
             outsA[i] = lateral_layer(outsA[i])
-            outsB[i] = lateral_layer(outsB[i])
+            outsB[i] = F.interpolate(lateral_layer(outsB[i]),scale_factor=2)
 
         for i in range(self.num_stages-1,-1,-1):
             fpn_layer = self.fpn_convs[i]
