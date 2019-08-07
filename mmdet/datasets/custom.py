@@ -13,10 +13,11 @@ from .utils import to_tensor, random_scale
 from .extra_aug import ExtraAugmentation
 
 
+
+
 @DATASETS.register_module
 class CustomDataset(Dataset):
     """Custom dataset for detection.
-
     Annotation format:
     [
         {
@@ -32,7 +33,6 @@ class CustomDataset(Dataset):
         },
         ...
     ]
-
     The `ann` field is optional for testing.
     """
 
@@ -56,14 +56,15 @@ class CustomDataset(Dataset):
                  seg_scale_factor=1,
                  extra_aug=None,
                  resize_keep_ratio=True,
+                 corruption=None,
+                 corruption_severity=1,
+                 skip_img_without_anno=True,
                  test_mode=False):
         # prefix of images path
         self.img_prefix = img_prefix
-        # in test mode or not
-        self.test_mode = test_mode
+
         # load annotations (and proposals)
         self.img_infos = self.load_annotations(ann_file)
-        #.img_infos = self.img_infos[:int(0.1 * len(self.img_infos))]
         if proposal_file is not None:
             self.proposals = self.load_proposals(proposal_file)
         else:
@@ -108,7 +109,8 @@ class CustomDataset(Dataset):
         self.seg_prefix = seg_prefix
         # rescale factor for segmentation maps
         self.seg_scale_factor = seg_scale_factor
-
+        # in test mode or not
+        self.test_mode = test_mode
 
         # set group flag for the sampler
         if not self.test_mode:
@@ -129,6 +131,11 @@ class CustomDataset(Dataset):
 
         # image rescale if keep ratio
         self.resize_keep_ratio = resize_keep_ratio
+        self.skip_img_without_anno = skip_img_without_anno
+
+        # corruptions
+        self.corruption = corruption
+        self.corruption_severity = corruption_severity
 
     def __len__(self):
         return len(self.img_infos)
@@ -152,7 +159,6 @@ class CustomDataset(Dataset):
 
     def _set_group_flag(self):
         """Set flag according to image aspect ratio.
-
         Images with aspect ratio greater than 1 will be set as group 1,
         otherwise group 0.
         """
@@ -180,6 +186,12 @@ class CustomDataset(Dataset):
         img_info = self.img_infos[idx]
         # load image
         img = mmcv.imread(osp.join(self.img_prefix, img_info['filename']))
+        # corruption
+        if self.corruption is not None:
+            img = corrupt(
+                img,
+                severity=self.corruption_severity,
+                corruption_name=self.corruption)
         # load proposals if necessary
         if self.proposals is not None:
             proposals = self.proposals[idx][:self.num_max_proposals]
@@ -205,7 +217,9 @@ class CustomDataset(Dataset):
             gt_bboxes_ignore = ann['bboxes_ignore']
 
         # skip the image if there is no valid gt bbox
-        if len(gt_bboxes) == 0:
+        if len(gt_bboxes) == 0 and self.skip_img_without_anno:
+            warnings.warn('Skip the image "%s" that has no valid gt bbox' %
+                          osp.join(self.img_prefix, img_info['filename']))
             return None
 
         # extra augmentation
@@ -222,8 +236,8 @@ class CustomDataset(Dataset):
         img = img.copy()
         if self.with_seg:
             gt_seg = mmcv.imread(
-                osp.join(self.seg_prefix, img_info['file_name'].replace(
-                    'jpg', 'png')),
+                osp.join(self.seg_prefix,
+                         img_info['filename'].replace('jpg', 'png')),
                 flag='unchanged')
             gt_seg = self.seg_transform(gt_seg.squeeze(), img_scale, flip)
             gt_seg = mmcv.imrescale(
@@ -232,8 +246,8 @@ class CustomDataset(Dataset):
         if self.proposals is not None:
             proposals = self.bbox_transform(proposals, img_shape, scale_factor,
                                             flip)
-            proposals = np.hstack(
-                [proposals, scores]) if scores is not None else proposals
+            proposals = np.hstack([proposals, scores
+                                   ]) if scores is not None else proposals
         gt_bboxes = self.bbox_transform(gt_bboxes, img_shape, scale_factor,
                                         flip)
         if self.with_crowd:
@@ -244,7 +258,6 @@ class CustomDataset(Dataset):
                                            scale_factor, flip)
 
         ori_shape = (img_info['height'], img_info['width'], 3)
-
         img_meta = dict(
             ori_shape=ori_shape,
             img_shape=img_shape,
@@ -272,6 +285,13 @@ class CustomDataset(Dataset):
         """Prepare an image for testing (multi-scale and flipping)"""
         img_info = self.img_infos[idx]
         img = mmcv.imread(osp.join(self.img_prefix, img_info['filename']))
+        # corruption
+        if self.corruption is not None:
+            img = corrupt(
+                img,
+                severity=self.corruption_severity,
+                corruption_name=self.corruption)
+        # load proposals if necessary
         if self.proposals is not None:
             proposal = self.proposals[idx][:self.num_max_proposals]
             if not (proposal.shape[1] == 4 or proposal.shape[1] == 5):
@@ -285,7 +305,6 @@ class CustomDataset(Dataset):
             _img, img_shape, pad_shape, scale_factor = self.img_transform(
                 img, scale, flip, keep_ratio=self.resize_keep_ratio)
             _img = to_tensor(_img)
-
             _img_meta = dict(
                 ori_shape=(img_info['height'], img_info['width'], 3),
                 img_shape=img_shape,
@@ -300,8 +319,8 @@ class CustomDataset(Dataset):
                     score = None
                 _proposal = self.bbox_transform(proposal, img_shape,
                                                 scale_factor, flip)
-                _proposal = np.hstack(
-                    [_proposal, score]) if score is not None else _proposal
+                _proposal = np.hstack([_proposal, score
+                                       ]) if score is not None else _proposal
                 _proposal = to_tensor(_proposal)
             else:
                 _proposal = None

@@ -1,14 +1,14 @@
 import torch.nn as nn
 import torch.nn.functional as F
 from mmcv.cnn import xavier_init
-
+import torch
 from mmdet.core import auto_fp16
 from ..registry import NECKS
 from ..utils import ConvModule
 
 
 @NECKS.register_module
-class FPN(nn.Module):
+class CFPN(nn.Module):
 
     def __init__(self,
                  in_channels,
@@ -23,7 +23,7 @@ class FPN(nn.Module):
                  norm_cfg=None,
                  interval=2,
                  activation=None):
-        super(FPN, self).__init__()
+        super(CFPN, self).__init__()
         assert isinstance(in_channels, list)
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -59,7 +59,7 @@ class FPN(nn.Module):
                 activation=self.activation,
                 inplace=False)
             fpn_conv = ConvModule(
-                out_channels,
+                out_channels*4,
                 out_channels,
                 3,
                 padding=1,
@@ -106,11 +106,33 @@ class FPN(nn.Module):
             lateral_conv(inputs[i + self.start_level])
             for i, lateral_conv in enumerate(self.lateral_convs)
         ]
+
         # build top-down path
         used_backbone_levels = len(laterals)
         for i in range(used_backbone_levels - 1, 0, -1):
             laterals[i - 1] += F.interpolate(
                 laterals[i], scale_factor=self.interval, mode='nearest')
+        # Chanell cat
+        cat_outs = []
+        cat_out =torch.cat(laterals[used_backbone_levels-1],F.interpolate(laterals[used_backbone_levels-1-1],scale_factor=1/2), \
+                F.interpolate(laterals[used_backbone_levels-1-2],scale_factor=1/4), \
+                  F.interpolate(laterals[used_backbone_levels-1-3],scale_factor=1/8),1)
+        cat_outs.append(cat_out)
+        cat_out = torch.cat(laterals[used_backbone_levels - 2] , F.interpolate(laterals[used_backbone_levels - 2 - 1],
+                                                                     scale_factor=1 / 2) , \
+                  F.interpolate(laterals[used_backbone_levels - 2 - 2], scale_factor=1 / 4) , \
+                  F.interpolate(laterals[used_backbone_levels - 2 +1], scale_factor=2),1)
+        cat_outs.append(cat_out)
+        cat_out = torch.cat(laterals[used_backbone_levels - 3] , F.interpolate(laterals[used_backbone_levels - 3 - 1],
+                                                                     scale_factor=1 / 2) , \
+                  F.interpolate(laterals[used_backbone_levels -3 +2], scale_factor= 4) ,\
+                  F.interpolate(laterals[used_backbone_levels - 3 + 1], scale_factor=2),1)
+        cat_outs.append(cat_out)
+        cat_out = torch.cat(laterals[used_backbone_levels - 4] , F.interpolate(laterals[used_backbone_levels - 4 +1],
+                                                                     scale_factor=2) , \
+                  F.interpolate(laterals[used_backbone_levels - 4 +2], scale_factor=4) , \
+                  F.interpolate(laterals[used_backbone_levels - 4 +3], scale_factor=8),1)
+        cat_outs.append(cat_out)
 
         # build outputs
         # part 1: from original levels

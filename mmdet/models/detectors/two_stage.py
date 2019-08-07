@@ -121,6 +121,12 @@ class TwoStageDetector(BaseDetector, RPNTestMixin, BBoxTestMixin,
             bbox_assigner = build_assigner(self.train_cfg.rcnn.assigner)
             bbox_sampler = build_sampler(
                 self.train_cfg.rcnn.sampler, context=self)
+            #if isinstance(img,torch.Tensor):
+            #    num_imgs = img.size(0)
+            #elif isinstance(img,list):
+            #    num_imgs = img[0].size(0)
+            #else:
+            #    raise ValueError
             num_imgs = img.size(0)
             if gt_bboxes_ignore is None:
                 gt_bboxes_ignore = [None for _ in range(num_imgs)]
