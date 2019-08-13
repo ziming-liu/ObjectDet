@@ -28,10 +28,8 @@ class AdversarialLoss(nn.Module):
         #reduction = (
         #    reduction_override if reduction_override else self.reduction)
 
-        loss_adv = F.binary_cross_entropy_with_logits(score, label,
-                                           self.loss_weight,
-                                           pos_weight=weight,
-                                           reduction=self.reduction)
-
+        #loss_adv = F.binary_cross_entropy_with_logits(score, label,
+        #        self.loss_weight, pos_weight=weight,   reduction=self.reduction)
+        loss_adv = F.cross_entropy(score,label.long())
         #return 1/(1+torch.exp(-loss_adv))
         return loss_adv

@@ -3,12 +3,12 @@ from __future__ import division
 import torch
 import torch.nn as nn
 
-from .base import BaseDetector
-from .test_mixins import RPNTestMixin
+from mmdet.core import (bbox2result, bbox2roi, build_assigner, build_sampler,
+                        merge_aug_masks)
 from .. import builder
 from ..registry import DETECTORS
-from mmdet.core import (build_assigner, bbox2roi, bbox2result, build_sampler,
-                        merge_aug_masks)
+from .base import BaseDetector
+from .test_mixins import RPNTestMixin
 
 
 @DETECTORS.register_module
@@ -323,9 +323,16 @@ class CascadeRCNN(BaseDetector, RPNTestMixin):
                 mask_classes = self.mask_head[-1].num_classes - 1
                 segm_result = [[] for _ in range(mask_classes)]
             else:
-                _bboxes = (
-                    det_bboxes[:, :4] *
-                    scale_factor if rescale else det_bboxes)
+                if isinstance(scale_factor, float):  # aspect ratio fixed
+                    _bboxes = (
+                        det_bboxes[:, :4] *
+                        scale_factor if rescale else det_bboxes)
+                else:
+                    _bboxes = (
+                        det_bboxes[:, :4] *
+                        torch.from_numpy(scale_factor).to(det_bboxes.device)
+                        if rescale else det_bboxes)
+
                 mask_rois = bbox2roi([_bboxes])
                 aug_masks = []
                 for i in range(self.num_stages):

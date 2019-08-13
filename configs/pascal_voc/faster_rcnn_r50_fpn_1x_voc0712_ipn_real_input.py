@@ -8,7 +8,7 @@ model = dict(
         num_stages=4,
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
-        style='pytorch',with_cp=False),
+        style='pytorch',with_cp=True),
     neck=dict(
         type='FPN',
         in_channels=[256, 256,512,512, 1024,1024,2048,],
@@ -21,7 +21,7 @@ model = dict(
         feat_channels=256,
         anchor_scales=[8],
         anchor_ratios=[0.5, 1.0, 2.0],
-        anchor_strides=[4,8,16,32,64,128,256,],
+        anchor_strides=[4,8,16,32,64,128,256],
         target_means=[.0, .0, .0, .0],
         target_stds=[1.0, 1.0, 1.0, 1.0],
         loss_cls=dict(
@@ -32,7 +32,7 @@ model = dict(
         type='SingleRoIExtractor',
         roi_layer=dict(type='RoIAlign', out_size=7, sample_num=2),
         out_channels=256,
-        featmap_strides=[4,8,16,32,64,128,256,]),
+        featmap_strides=[4,8,16,32,64,128,256]),
     bbox_head=dict(
         type='SharedFCBBoxHead',
         num_fcs=2,
@@ -46,7 +46,8 @@ model = dict(
         loss_cls=dict(
             type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0),
         loss_bbox=dict(type='SmoothL1Loss', beta=1.0, loss_weight=1.0),
-    loss_adv = dict(type='AdversarialLoss',),with_adv=True,))
+
+    ))
 # model training and testing settings
 train_cfg = dict(
     rpn=dict(
@@ -129,7 +130,7 @@ data = dict(
         type=dataset_type,
         ann_file=data_root + 'VOC2007/ImageSets/Main/test.txt',
         img_prefix=data_root + 'VOC2007/',
-        img_scale=(1000 * 2, 600 * 2),
+        img_scale=(1000*2 , 600*2 ),
         img_norm_cfg=img_norm_cfg,
         size_divisor=32*8,
         flip_ratio=0,
@@ -162,10 +163,10 @@ log_config = dict(
     ])
 # yapf:enable
 # runtime settings
-total_epochs = 12  # actual epoch = 4 * 3 = 12
+total_epochs = 10  # actual epoch = 4 * 3 = 12
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/faster_rcnn_r50_fpn_1x_voc0712_real_input'
+work_dir = './work_dirs/faster_rcnn_r50_fpn_1x_voc0712_real_input_nomaxpool'
 load_from = None
 resume_from = None
 workflow = [('train', 1)]

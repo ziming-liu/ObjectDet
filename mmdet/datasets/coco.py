@@ -31,8 +31,6 @@ class CocoDataset(CustomDataset):
             for i, cat_id in enumerate(self.cat_ids)
         }
         self.img_ids = self.coco.getImgIds()
-        #if not self.test_mode:
-        #    self.img_ids = self.img_ids[:int(0.5*len(self.img_ids))]
         img_infos = []
         for i in self.img_ids:
             info = self.coco.loadImgs([i])[0]

@@ -8,7 +8,7 @@ model = dict(
         num_stages=4,
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
-        style='pytorch'),
+        style='pytorch',with_cp=True),
     neck=dict(
         type='FPN',
         in_channels=[256, 512, 1024, 2048],
@@ -44,6 +44,7 @@ train_cfg = dict(
         min_pos_iou=0,
         ignore_iof_thr=-1),
     allowed_border=-1,
+    online_select=False,
     pos_weight=-1,
     debug=False)
 test_cfg = dict(
