@@ -7,13 +7,27 @@ import torch.nn.functional as F
 from mmcv.cnn import constant_init, kaiming_init
 from mmcv.runner import load_checkpoint
 import mmcv
-
+from torch.utils import model_zoo
 
 from mmdet.ops import DeformConv, ModulatedDeformConv, ContextBlock
 from mmdet.models.plugins import GeneralizedAttention
 
 from ..registry import BACKBONES
 from ..utils import build_conv_layer, build_norm_layer
+
+model_urls = {
+    '18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
+    '34': 'https://download.pytorch.org/models/resnet34-333f7ec4.pth',
+    '50': 'https://download.pytorch.org/models/resnet50-19c8e357.pth',
+    #'101': 'https://download.pytorch.org/models/resnet50-19c8e357.pth',
+    '101': 'https://download.pytorch.org/models/resnet101-5d3b4d8f.pth',
+    'resnet152': 'https://download.pytorch.org/models/resnet152-b121ed2d.pth',
+    'resnext50_32x4d': 'https://download.pytorch.org/models/resnext50_32x4d-7cdf4587.pth',
+    'resnext101_32x8d': 'https://download.pytorch.org/models/resnext101_32x8d-8ba56ff5.pth',
+    'wide_resnet50_2': 'https://download.pytorch.org/models/wide_resnet50_2-95faca4d.pth',
+    'wide_resnet101_2': 'https://download.pytorch.org/models/wide_resnet101_2-32ee1156.pth',
+}
+
 
 
 class BasicBlock(nn.Module):
@@ -441,7 +455,7 @@ class IPN_independ(nn.Module):
                     gcb=gcb,
                     gen_attention=gen_attention,
                     gen_attention_blocks=stage_with_gen_attention[i])
-                layer_name = 'layer{}_{}'.format(i + 1,jj+1)
+                layer_name = 'branch{}_layer{}'.format(jj+1,i + 1)
                 self.add_module(layer_name, res_layer)
                 layer_i.append(layer_name)
             self.inplanes = planes * self.block.expansion
@@ -479,7 +493,7 @@ class IPN_independ(nn.Module):
 
         for i in range(1, self.frozen_stages + 1):
             for jj in range(self.num_stages-i):
-                m = getattr(self, 'layer{}_{}'.format(i,jj+1))
+                m = getattr(self,  'branch{}_layer{}'.format(jj+1,i))
                 m.eval()
                 for param in m.parameters():
                     param.requires_grad = False
@@ -487,7 +501,21 @@ class IPN_independ(nn.Module):
     def init_weights(self, pretrained=None):
         if isinstance(pretrained, str):
             logger = logging.getLogger()
-            load_checkpoint(self, pretrained, strict=False, logger=logger)
+            #load_checkpoint(self, pretrained, strict=False, logger=logger)
+            for i in range(self.num_stages): # num branch
+                print("###load param for {}".format('branch{}'.format(i + 1)))
+                url = model_urls[str(self.depth)]
+                # http = {'url': 'http://data.lip6.fr/cadene/pretrainedmodels/dpn92_extra-b040e4a9b.pth'}
+                pretrained_dict = model_zoo.load_url(url)
+                model_dict = self.state_dict()
+                pretrained_dict = { 'branch{}_'.format(i+1) + k: v for k, v in pretrained_dict.items() if
+                                   'branch{}_'.format(i+1) + k in model_dict}  # filter out unnecessary keys
+                # print("for {} stream".format(stream_name))
+                print(pretrained_dict.keys())
+                model_dict.update(pretrained_dict)
+                self.load_state_dict(model_dict)
+
+
         elif pretrained is None:
             for m in self.modules():
                 if isinstance(m, nn.Conv2d):
