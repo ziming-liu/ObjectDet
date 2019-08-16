@@ -19,6 +19,7 @@ class FPN(nn.Module):
                  add_extra_convs=False,
                  extra_convs_on_inputs=True,
                  relu_before_extra_convs=False,
+                 interval=2,
                  conv_cfg=None,
                  norm_cfg=None,
                  activation=None):
@@ -31,7 +32,7 @@ class FPN(nn.Module):
         self.activation = activation
         self.relu_before_extra_convs = relu_before_extra_convs
         self.fp16_enabled = False
-
+        self.interval = interval
         if end_level == -1:
             self.backbone_end_level = self.num_ins
             assert num_outs >= self.num_ins - start_level
@@ -110,7 +111,7 @@ class FPN(nn.Module):
         used_backbone_levels = len(laterals)
         for i in range(used_backbone_levels - 1, 0, -1):
             laterals[i - 1] += F.interpolate(
-                laterals[i], scale_factor=2, mode='nearest')
+                laterals[i], scale_factor=self.interval, mode='nearest')
 
         # build outputs
         # part 1: from original levels

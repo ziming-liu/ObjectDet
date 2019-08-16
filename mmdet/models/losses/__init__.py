@@ -8,9 +8,9 @@ from .iou_loss import BoundedIoULoss, IoULoss, bounded_iou_loss, iou_loss
 from .mse_loss import MSELoss, mse_loss
 from .smooth_l1_loss import SmoothL1Loss, smooth_l1_loss
 from .utils import reduce_loss, weight_reduce_loss, weighted_loss
-
+from .select_iou_loss import Select_Iou_Loss
 __all__ = [
-    'accuracy', 'Accuracy', 'cross_entropy', 'binary_cross_entropy',
+    'accuracy', 'Accuracy', 'cross_entropy','Select_Iou_Loss', 'binary_cross_entropy',
     'mask_cross_entropy', 'CrossEntropyLoss', 'sigmoid_focal_loss',
     'FocalLoss', 'smooth_l1_loss', 'SmoothL1Loss', 'balanced_l1_loss',
     'BalancedL1Loss', 'mse_loss', 'MSELoss', 'iou_loss', 'bounded_iou_loss',

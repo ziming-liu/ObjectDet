@@ -83,7 +83,7 @@ class DoubleConvFCBBoxHead(BBoxHead):
     """  # noqa: W605
 
     def __init__(self,
-                 num_convs=0,
+                 num_convs=2,
                  num_fcs=0,
                  conv_out_channels=1024,
                  fc_out_channels=1024,
