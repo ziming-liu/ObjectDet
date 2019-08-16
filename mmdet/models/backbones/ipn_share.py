@@ -531,7 +531,7 @@ class IPN_share(nn.Module):
         edge = max(h,w)
         range_ = edge - edge/2
         #print("inter {}".format(range_/4))
-        scale_factor = [edge/edge,(edge-range_/4)/edge,(edge-range_*2/4)/edge,(edge-range_*3/4)/edge]
+        scale_factor = [edge/edge,(edge-range_/3)/edge,(edge-range_*2/3)/edge,(edge-range_*3/3)/edge]
         for i in range(self.num_stages):
             parimad.append(F.interpolate(input.clone(),scale_factor=scale_factor[i],mode='nearest'))
 
