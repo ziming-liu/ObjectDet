@@ -525,8 +525,16 @@ class IPN_share(nn.Module):
             parimad.append(torch.stack(tuple(tensor_ascale)))
             #print("input size  : {}".format(parimad[i].shape))
         """
+        b, c, h, w = input.shape
+        #print("INPUT")
+        #print(input.shape)
+        edge = max(h,w)
+        range_ = edge - edge/2
+        #print("inter {}".format(range_/4))
+        scale_factor = [edge/edge,(edge-range_/4)/edge,(edge-range_*2/4)/edge,(edge-range_*3/4)/edge]
         for i in range(self.num_stages):
-            parimad.append(F.interpolate(input.clone(),scale_factor=2**(-i),mode='nearest'))
+            parimad.append(F.interpolate(input.clone(),scale_factor=scale_factor[i],mode='nearest'))
+
         parimad_feats = []
         for i in range(self.num_stages):
             x = parimad[i]
@@ -536,18 +544,26 @@ class IPN_share(nn.Module):
             x = self.maxpool(x)
             parimad_feats.append(x)
 
-        outs = []
+        outs = [[] for _ in range(self.num_stages)]
         for jj in range(self.num_stages):
             for ii in range(0,jj+1):
                 layer_name = self.res_layers[ii]
                 res_layer = getattr(self, layer_name)
                 parimad_feats[jj] = res_layer(parimad_feats[jj])
-                if ii == jj or ii == jj-1:
+                #if ii == jj or ii == jj-1:
                     #print(parimad_feats[jj].shape)
-                    outs.append(parimad_feats[jj])
+                outs[jj].append(parimad_feats[jj])
             #print("out  : {}".format(parimad_feats[jj].shape))
             #outs.append(parimad_feats[jj])
-        return tuple(outs)
+        finalouts = []
+        for stagei in range(self.num_stages):
+            num_bran_for_stage = self.num_stages - stagei
+            for branchidx in range(stagei,self.num_stages,1):
+                finalouts.append(outs[branchidx][stagei])
+        #print(len(finalouts))
+        #for i in finalouts:
+        #    print(i.shape)
+        return tuple(finalouts)
 
     def train(self, mode=True):
         super(IPN_share, self).train(mode)
