@@ -557,6 +557,8 @@ class IPN_share(nn.Module):
             #outs.append(parimad_feats[jj])
         finalouts = []
         for stagei in range(self.num_stages):
+            if stagei not in self.out_indices:
+                continue
             num_bran_for_stage = self.num_stages - stagei
             for branchidx in range(stagei,self.num_stages,1):
                 finalouts.append(outs[branchidx][stagei])
@@ -568,8 +570,8 @@ class IPN_share(nn.Module):
     def train(self, mode=True):
         super(IPN_share, self).train(mode)
         self._freeze_stages()
-        if mode and self.norm_eval:
-            for m in self.modules():
+        #if mode and self.norm_eval:
+        #    for m in self.modules():
                 # trick: eval have effect on BatchNorm only
-                if isinstance(m, _BatchNorm):
-                    m.eval()
+        #        if isinstance(m, _BatchNorm):
+        #            m.eval()
