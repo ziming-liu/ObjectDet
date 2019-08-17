@@ -11,7 +11,7 @@ from mmdet.apis import (train_detector, init_dist, get_root_logger,
 from mmdet.models import build_detector
 import torch
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2"
+#os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2"
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a detector')
