@@ -165,5 +165,5 @@ dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = './work_dirs/faster_rcnn_r50_fpn_1x_equaler'
 load_from = None
-resume_from = None#'./work_dirs/faster_rcnn_r50_fpn_1x/epoch_8.pth'
+resume_from = './work_dirs/faster_rcnn_r50_fpn_1x/epoch_12.pth'
 workflow = [('train', 1)]

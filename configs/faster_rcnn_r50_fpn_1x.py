@@ -131,8 +131,8 @@ data = dict(
         with_label=True),
     test=dict(
         type=dataset_type,
-        ann_file=data_root + 'annotations/instances_val2017.json',
-        img_prefix=data_root + 'val2017/',
+        ann_file=data_root + 'annotations/image_info_test-dev2017.json',
+        img_prefix=data_root + 'test2017/',
         img_scale=(1333, 800),
         img_norm_cfg=img_norm_cfg,
         size_divisor=32,
@@ -165,5 +165,5 @@ dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = './work_dirs/faster_rcnn_r50_fpn_1x'
 load_from = None
-resume_from = None#'./work_dirs/faster_rcnn_r50_fpn_1x/epoch_8.pth'
+resume_from = None#'./work_dirs/faster_rcnn_r50_fpn_1x/epoch_12.pth'
 workflow = [('train', 1)]
