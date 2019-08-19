@@ -3,14 +3,14 @@ model = dict(
     type='FasterRCNN',
     pretrained='modelzoo://resnet50',
     backbone=dict(
-        type='IPN_share',
+        type='IPN_fusing',
         depth=50,
         num_stages=4,
         out_indices=(0, 1, 2, 3),
-        frozen_stages=-1,
+        frozen_stages=0,
         style='pytorch',with_cp=True),
     neck=dict(
-        type='pinkFPN',
+        type='flatFPN',
         in_channels=[256, 256, 256, 256, 512, 512, 512, 1024, 1024, 2048],
         out_channels=256,
         num_outs=10),
@@ -103,7 +103,7 @@ data_root = 'data/VOCdevkit/'
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 data = dict(
-    imgs_per_gpu=6,
+    imgs_per_gpu=4,
     workers_per_gpu=8,
     train=dict(
         type='RepeatDataset',  # to avoid reloading datasets frequently
@@ -162,7 +162,7 @@ log_config = dict(
 total_epochs = 12  # actual epoch = 4 * 3 = 12
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/faster_rcnn_r50_pinkfpn_1x_voc0712'
+work_dir = './work_dirs/faster_rcnn_r50_nofpn_1x_voc0712_fusingipn'
 load_from = None
 resume_from = None
 workflow = [('train', 1)]

@@ -8,7 +8,7 @@ from ..utils import ConvModule
 
 
 @NECKS.register_module
-class customFPN(nn.Module):
+class fusingFPN(nn.Module):
 
     def __init__(self,
                  in_channels,
@@ -20,15 +20,17 @@ class customFPN(nn.Module):
                  extra_convs_on_inputs=True,
                  relu_before_extra_convs=False,
                  interval=2,
+                 num_stage=4,
                  conv_cfg=None,
                  norm_cfg=None,
                  activation=None):
-        super(customFPN, self).__init__()
+        super(fusingFPN, self).__init__()
         assert isinstance(in_channels, list)
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.num_ins = len(in_channels)
         self.num_outs = num_outs
+        self.num_stage = num_stage
         self.activation = activation
         self.relu_before_extra_convs = relu_before_extra_convs
         self.fp16_enabled = False
@@ -45,7 +47,7 @@ class customFPN(nn.Module):
         self.end_level = end_level
         self.add_extra_convs = add_extra_convs
         self.extra_convs_on_inputs = extra_convs_on_inputs
-        self.outs_stides = []
+        self.out_strides = []
         self.lateral_convs = nn.ModuleList()
         self.fpn_convs = nn.ModuleList()
 
@@ -105,31 +107,52 @@ class customFPN(nn.Module):
             lateral_conv(inputs[i + self.start_level])
             for i, lateral_conv in enumerate(self.lateral_convs)
         ]
+        reshaped_laterals = [[] for _ in range(len(laterals))]
+        idx = 0
+        for i in range(self.num_stage):
+            num = self.num_stage - i
+            for j in range(i, i + num):
+                reshaped_laterals[j].append(laterals[idx])
+                idx += 1
+        for idx_bran in range(0,self.num_stage,1): # 4 3 2 branch
+            laterals = reshaped_laterals[idx_bran]
+            # for branch idx bran
+            # build top-down path
+            # brantch自己内部相加
+            used_backbone_levels = len(laterals)
+            for i in range(1, used_backbone_levels , 1):
 
-        # build top-down path
-        used_backbone_levels = len(laterals)
-        for i in range(used_backbone_levels - 1, 0, -1):
+                scale_factor = laterals[i].shape[3] / laterals[i-1].shape[3]
+                next = F.interpolate(
+                    laterals[i-1], scale_factor=scale_factor, mode='nearest')
+                w = min(next.shape[3],laterals[i].shape[3])
+                h = min(next.shape[2],laterals[i].shape[2])
+                next = next[:,:,:h,:w]
+                laterals[i]= laterals[i][:,:,:h,:w]
+                laterals[i] = (laterals[i] + next) / 2
+            # branch之间相加
+            if idx_bran!=self.num_stage-1:
+                for ii in range(len(reshaped_laterals[idx_bran])):
+                    smaller = reshaped_laterals[idx_bran+1][ii] # 对应stage的下一层
+                    biger = reshaped_laterals[idx_bran][ii]
+                    scale_factor = smaller.shape[3] / biger.shape[3]
+                    next = F.interpolate(
+                        biger, scale_factor=scale_factor, mode='nearest')
+                    w = min(next.shape[3], smaller.shape[3])
+                    h = min(next.shape[2], smaller.shape[2])
+                    next = next[:, :, :h, :w]
+                    smaller = smaller[:, :, :h, :w]
+                    reshaped_laterals[idx_bran+1][ii] = (smaller + next)/2
 
-            #print(laterals[i].shape)
-           # print(F.interpolate(
-            #    laterals[i], scale_factor=1.36, mode='nearest').shape)
-            scale_factor = laterals[i-1].shape[3] / laterals[i].shape[3]
-            next = F.interpolate(
-                laterals[i], scale_factor=scale_factor, mode='nearest')
-            laterals[i-1] = laterals[i-1]
-            w = min(next.shape[3],laterals[i-1].shape[3])
-            h = min(next.shape[2],laterals[i-1].shape[2])
-            next = next[:,:,:h,:w]
-            laterals[i-1]= laterals[i-1][:,:,:h,:w]
-            laterals[i-1] += next
-
-            #laterals[i - 1] += F.interpolate(
-             #   laterals[i], scale_factor=self.interval, mode='nearest')
-
+        path_outs = []
+        for i in range(self.num_stage): # col
+            num = self.num_stage - i
+            for j in range(i, i + num): # row
+                path_outs.append(reshaped_laterals[j][i])
         # build outputs
         # part 1: from original levels
         outs = [
-            self.fpn_convs[i](laterals[i]) for i in range(used_backbone_levels)
+            self.fpn_convs[i](path_outs[i]) for i in range(used_backbone_levels)
         ]
         # part 2: add extra levels
         if self.num_outs > len(outs):

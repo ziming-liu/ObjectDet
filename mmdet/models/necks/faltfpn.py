@@ -8,7 +8,7 @@ from ..utils import ConvModule
 
 
 @NECKS.register_module
-class customFPN(nn.Module):
+class flatFPN(nn.Module):
 
     def __init__(self,
                  in_channels,
@@ -23,7 +23,7 @@ class customFPN(nn.Module):
                  conv_cfg=None,
                  norm_cfg=None,
                  activation=None):
-        super(customFPN, self).__init__()
+        super(flatFPN, self).__init__()
         assert isinstance(in_channels, list)
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -45,7 +45,7 @@ class customFPN(nn.Module):
         self.end_level = end_level
         self.add_extra_convs = add_extra_convs
         self.extra_convs_on_inputs = extra_convs_on_inputs
-        self.outs_stides = []
+
         self.lateral_convs = nn.ModuleList()
         self.fpn_convs = nn.ModuleList()
 
@@ -58,18 +58,9 @@ class customFPN(nn.Module):
                 norm_cfg=norm_cfg,
                 activation=self.activation,
                 inplace=False)
-            fpn_conv = ConvModule(
-                out_channels,
-                out_channels,
-                3,
-                padding=1,
-                conv_cfg=conv_cfg,
-                norm_cfg=norm_cfg,
-                activation=self.activation,
-                inplace=False)
+
 
             self.lateral_convs.append(l_conv)
-            self.fpn_convs.append(fpn_conv)
 
         # add extra conv layers (e.g., RetinaNet)
         extra_levels = num_outs - self.backbone_end_level + self.start_level
@@ -100,54 +91,11 @@ class customFPN(nn.Module):
     @auto_fp16()
     def forward(self, inputs):
         assert len(inputs) == len(self.in_channels)
+
         # build laterals
         laterals = [
             lateral_conv(inputs[i + self.start_level])
             for i, lateral_conv in enumerate(self.lateral_convs)
         ]
 
-        # build top-down path
-        used_backbone_levels = len(laterals)
-        for i in range(used_backbone_levels - 1, 0, -1):
-
-            #print(laterals[i].shape)
-           # print(F.interpolate(
-            #    laterals[i], scale_factor=1.36, mode='nearest').shape)
-            scale_factor = laterals[i-1].shape[3] / laterals[i].shape[3]
-            next = F.interpolate(
-                laterals[i], scale_factor=scale_factor, mode='nearest')
-            laterals[i-1] = laterals[i-1]
-            w = min(next.shape[3],laterals[i-1].shape[3])
-            h = min(next.shape[2],laterals[i-1].shape[2])
-            next = next[:,:,:h,:w]
-            laterals[i-1]= laterals[i-1][:,:,:h,:w]
-            laterals[i-1] += next
-
-            #laterals[i - 1] += F.interpolate(
-             #   laterals[i], scale_factor=self.interval, mode='nearest')
-
-        # build outputs
-        # part 1: from original levels
-        outs = [
-            self.fpn_convs[i](laterals[i]) for i in range(used_backbone_levels)
-        ]
-        # part 2: add extra levels
-        if self.num_outs > len(outs):
-            # use max pool to get more levels on top of outputs
-            # (e.g., Faster R-CNN, Mask R-CNN)
-            if not self.add_extra_convs:
-                for i in range(self.num_outs - used_backbone_levels):
-                    outs.append(F.max_pool2d(outs[-1], 1, stride=2))
-            # add conv layers on top of original feature maps (RetinaNet)
-            else:
-                if self.extra_convs_on_inputs:
-                    orig = inputs[self.backbone_end_level - 1]
-                    outs.append(self.fpn_convs[used_backbone_levels](orig))
-                else:
-                    outs.append(self.fpn_convs[used_backbone_levels](outs[-1]))
-                for i in range(used_backbone_levels + 1, self.num_outs):
-                    if self.relu_before_extra_convs:
-                        outs.append(self.fpn_convs[i](F.relu(outs[-1])))
-                    else:
-                        outs.append(self.fpn_convs[i](outs[-1]))
-        return tuple(outs)
+        return tuple(laterals)

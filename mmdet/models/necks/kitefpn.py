@@ -8,7 +8,7 @@ from ..utils import ConvModule
 
 
 @NECKS.register_module
-class customFPN(nn.Module):
+class kiteFPN(nn.Module):
 
     def __init__(self,
                  in_channels,
@@ -20,10 +20,11 @@ class customFPN(nn.Module):
                  extra_convs_on_inputs=True,
                  relu_before_extra_convs=False,
                  interval=2,
+                 num_stage = 4,
                  conv_cfg=None,
                  norm_cfg=None,
                  activation=None):
-        super(customFPN, self).__init__()
+        super(kiteFPN, self).__init__()
         assert isinstance(in_channels, list)
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -33,6 +34,7 @@ class customFPN(nn.Module):
         self.relu_before_extra_convs = relu_before_extra_convs
         self.fp16_enabled = False
         self.interval = interval
+        self.num_stage = num_stage
         if end_level == -1:
             self.backbone_end_level = self.num_ins
             assert num_outs >= self.num_ins - start_level
@@ -45,7 +47,7 @@ class customFPN(nn.Module):
         self.end_level = end_level
         self.add_extra_convs = add_extra_convs
         self.extra_convs_on_inputs = extra_convs_on_inputs
-        self.outs_stides = []
+
         self.lateral_convs = nn.ModuleList()
         self.fpn_convs = nn.ModuleList()
 
@@ -100,37 +102,60 @@ class customFPN(nn.Module):
     @auto_fp16()
     def forward(self, inputs):
         assert len(inputs) == len(self.in_channels)
+
         # build laterals
         laterals = [
             lateral_conv(inputs[i + self.start_level])
             for i, lateral_conv in enumerate(self.lateral_convs)
         ]
+        # turn to level list
+        start_Idx = 0
+        level_list = [[] for _ in range(self.num_stage)]
+        for ii in range(self.num_stage):
+            length = self.num_stage - ii
+            level_list[ii]=laterals[start_Idx:start_Idx+length]
+            start_Idx += length
 
         # build top-down path
-        used_backbone_levels = len(laterals)
-        for i in range(used_backbone_levels - 1, 0, -1):
+        used_backbone_levels = len(level_list)
+        for i in range(used_backbone_levels - 1, 0, -1): # lvl
+            num_add = len(level_list[i]) # == this level's nodes
+            for node_I in range(num_add):
+                # down node
+                scale_factor = level_list[i-1][node_I].shape[3] / level_list[i][node_I].shape[3]
+                #print("scale FPN")
+                #print(scale_factor)
+                next = F.interpolate(
+                    level_list[i][node_I], scale_factor=scale_factor, mode='nearest')
 
-            #print(laterals[i].shape)
-           # print(F.interpolate(
-            #    laterals[i], scale_factor=1.36, mode='nearest').shape)
-            scale_factor = laterals[i-1].shape[3] / laterals[i].shape[3]
-            next = F.interpolate(
-                laterals[i], scale_factor=scale_factor, mode='nearest')
-            laterals[i-1] = laterals[i-1]
-            w = min(next.shape[3],laterals[i-1].shape[3])
-            h = min(next.shape[2],laterals[i-1].shape[2])
-            next = next[:,:,:h,:w]
-            laterals[i-1]= laterals[i-1][:,:,:h,:w]
-            laterals[i-1] += next
+                w = min(next.shape[3], level_list[i-1][node_I].shape[3])
+                h = min(next.shape[2], level_list[i-1][node_I].shape[2])
+                next = next[:, :, :h, :w]
+                level_list[i-1][node_I] = level_list[i-1][node_I][:, :, :h, :w]
+                level_list[i-1][node_I] = (next + level_list[i-1][node_I])/2.0
+                # left node
+                scale_factor = level_list[i - 1][node_I+1].shape[3] / level_list[i][node_I].shape[3]
+                #print("scale FPN")
+                #print(scale_factor)
+                next = F.interpolate(
+                    level_list[i][node_I], scale_factor=scale_factor, mode='nearest')
 
-            #laterals[i - 1] += F.interpolate(
-             #   laterals[i], scale_factor=self.interval, mode='nearest')
+                w = min(next.shape[3], level_list[i - 1][node_I+1].shape[3])
+                h = min(next.shape[2],level_list[i - 1][node_I+1].shape[2])
+                next = next[:, :, :h, :w]
+                level_list[i - 1][node_I+1] =level_list[i - 1][node_I+1][:, :, :h, :w]
+                level_list[i - 1][node_I+1] = (next + level_list[i - 1][node_I+1]) / 2.0
 
+        # turn to small to big list
+        laterals = []
+        for ii in range(len(level_list)):
+            laterals.extend(level_list[ii])
         # build outputs
         # part 1: from original levels
         outs = [
-            self.fpn_convs[i](laterals[i]) for i in range(used_backbone_levels)
+            self.fpn_convs[i](laterals[i]) for i in range(len(laterals))
         ]
+        used_backbone_levels = len(laterals)
         # part 2: add extra levels
         if self.num_outs > len(outs):
             # use max pool to get more levels on top of outputs
@@ -150,4 +175,6 @@ class customFPN(nn.Module):
                         outs.append(self.fpn_convs[i](F.relu(outs[-1])))
                     else:
                         outs.append(self.fpn_convs[i](outs[-1]))
+        #print(len(outs))
+        #print(outs[-1].shape)
         return tuple(outs)

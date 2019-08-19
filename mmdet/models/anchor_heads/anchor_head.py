@@ -38,6 +38,7 @@ class AnchorHead(nn.Module):
                  anchor_base_sizes=None,
                  target_means=(.0, .0, .0, .0),
                  target_stds=(1.0, 1.0, 1.0, 1.0),
+                 sampling=None,
                  loss_cls=dict(
                      type='CrossEntropyLoss',
                      use_sigmoid=True,
@@ -57,8 +58,9 @@ class AnchorHead(nn.Module):
         self.target_stds = target_stds
 
         self.use_sigmoid_cls = loss_cls.get('use_sigmoid', False)
-        self.sampling = loss_cls['type'] not in ['FocalLoss', 'GHMC']
-        if self.use_sigmoid_cls:
+        self.sampling = loss_cls['type'] not in ['FocalLoss', 'GHMC',]
+        self.sampling = sampling if sampling is not None else self.sampling
+        if self.use_sigmoid_cls: #and self.num_classes==2: # 8.18
             self.cls_out_channels = num_classes - 1
         else:
             self.cls_out_channels = num_classes
@@ -134,6 +136,7 @@ class AnchorHead(nn.Module):
                     bbox_targets, bbox_weights, num_total_samples, cfg):
         # classification loss
         labels = labels.reshape(-1)
+        #print(labels[:50])
         label_weights = label_weights.reshape(-1)
         cls_score = cls_score.permute(0, 2, 3,
                                       1).reshape(-1, self.cls_out_channels)

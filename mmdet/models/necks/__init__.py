@@ -3,4 +3,7 @@ from .fpn import FPN
 from .hrfpn import HRFPN
 from .customfpn import customFPN
 from .pinkfpn import pinkFPN
-__all__ = ['FPN', 'BFP', 'pinkFPN', 'HRFPN','customFPN']
+from .fusingfpn import fusingFPN
+from .faltfpn import flatFPN
+from .kitefpn import kiteFPN
+__all__ = ['FPN', 'BFP', 'flatFPN','pinkFPN','fusingFPN', 'HRFPN','customFPN','kiteFPN']

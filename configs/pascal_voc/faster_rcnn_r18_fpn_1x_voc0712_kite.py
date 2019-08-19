@@ -1,17 +1,17 @@
 # model settings
 model = dict(
     type='FasterRCNN',
-    pretrained='modelzoo://resnet50',
+    pretrained='modelzoo://resnet18',
     backbone=dict(
-        type='IPN_share',
-        depth=50,
+        type='IPN_kite',
+        depth=18,
         num_stages=4,
         out_indices=(0, 1, 2, 3),
-        frozen_stages=-1,
-        style='pytorch',with_cp=True),
+        frozen_stages=1,
+        style='pytorch',with_cp=False),
     neck=dict(
-        type='pinkFPN',
-        in_channels=[256, 256, 256, 256, 512, 512, 512, 1024, 1024, 2048],
+        type='kiteFPN',
+        in_channels=[64, 64, 64, 64, 128, 128, 128, 256, 256, 512],
         out_channels=256,
         num_outs=10),
     rpn_head=dict(
@@ -20,7 +20,7 @@ model = dict(
         feat_channels=256,
         anchor_scales=[8],
         anchor_ratios=[0.5, 1.0, 2.0],
-        anchor_strides=[4,4*2,4*4,4*8, 8*2,16*2,32*2, 32*2,64*2, 128*2,],
+        anchor_strides=[4,4/0.8333333,4/0.66666666,4/0.5,8/0.8333333,8/0.6666666,8/0.5,16/0.666666666,16/0.5,32/0.5],
         target_means=[.0, .0, .0, .0],
         target_stds=[1.0, 1.0, 1.0, 1.0],
         loss_cls=dict(
@@ -30,7 +30,7 @@ model = dict(
         type='SingleRoIExtractor',
         roi_layer=dict(type='RoIAlign', out_size=7, sample_num=2),
         out_channels=256,
-        featmap_strides=[4,4*2,4*4,4*8, 8*2,16*2,32*2, 32*2,64*2,]),
+        featmap_strides=[4,4/0.8333333,4/0.66666666,4/0.5,8/0.8333333,8/0.6666666,8/0.5,16/0.666666666,16/0.5,32/0.5],),
     bbox_head=dict(
         type='SharedFCBBoxHead',
         num_fcs=2,
@@ -104,10 +104,10 @@ img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 data = dict(
     imgs_per_gpu=6,
-    workers_per_gpu=8,
+    workers_per_gpu=6,
     train=dict(
         type='RepeatDataset',  # to avoid reloading datasets frequently
-        times=1,
+        times=3,
         dataset=dict(
             type=dataset_type,
             ann_file=[
@@ -162,7 +162,7 @@ log_config = dict(
 total_epochs = 12  # actual epoch = 4 * 3 = 12
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/faster_rcnn_r50_pinkfpn_1x_voc0712'
+work_dir = './work_dirs/faster_rcnn_r50_fpn_1x_voc0712_kite'
 load_from = None
 resume_from = None
 workflow = [('train', 1)]
