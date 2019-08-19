@@ -143,7 +143,7 @@ class DeshHead(AnchorHead):
             bbox_pred,
             bbox_targets,
             bbox_weights,
-            avg_factor=bbox_pred.shape[0])
+            avg_factor=num_total_samples)
         return loss_cls_h,loss_cls_w, loss_bbox
 
     @force_fp32(apply_to=('cls_scores', 'bbox_preds'))
@@ -178,7 +178,7 @@ class DeshHead(AnchorHead):
         (labels_list, label_weights_list, bbox_targets_list, bbox_weights_list,
          num_total_pos, num_total_neg) = cls_reg_targets
         num_total_samples = (
-            num_total_pos + num_total_neg) #if self.sampling else num_total_pos)
+            num_total_pos + num_total_neg if self.sampling else num_total_pos)
         losses_cls_h,losses_cls_w, losses_bbox = multi_apply(
             self.loss_single,
             cls_scores,

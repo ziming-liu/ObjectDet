@@ -48,8 +48,8 @@ class kiteFPN(nn.Module):
         self.add_extra_convs = add_extra_convs
         self.extra_convs_on_inputs = extra_convs_on_inputs
 
-        self.lateral_convs = nn.ModuleList()
-        self.fpn_convs = nn.ModuleList()
+        self.laterals_convs = nn.ModuleList()
+        self.fpns_convs = nn.ModuleList()
 
         for i in range(self.start_level, self.backbone_end_level):
             l_conv = ConvModule(
@@ -70,8 +70,8 @@ class kiteFPN(nn.Module):
                 activation=self.activation,
                 inplace=False)
 
-            self.lateral_convs.append(l_conv)
-            self.fpn_convs.append(fpn_conv)
+            self.laterals_convs.append(l_conv)
+            self.fpns_convs.append(fpn_conv)
 
         # add extra conv layers (e.g., RetinaNet)
         extra_levels = num_outs - self.backbone_end_level + self.start_level
@@ -91,7 +91,7 @@ class kiteFPN(nn.Module):
                     norm_cfg=norm_cfg,
                     activation=self.activation,
                     inplace=False)
-                self.fpn_convs.append(extra_fpn_conv)
+                self.fpns_convs.append(extra_fpn_conv)
 
     # default init_weights for conv(msra) and norm in ConvModule
     def init_weights(self):
@@ -106,7 +106,7 @@ class kiteFPN(nn.Module):
         # build laterals
         laterals = [
             lateral_conv(inputs[i + self.start_level])
-            for i, lateral_conv in enumerate(self.lateral_convs)
+            for i, lateral_conv in enumerate(self.laterals_convs)
         ]
         # turn to level list
         start_Idx = 0
@@ -153,7 +153,7 @@ class kiteFPN(nn.Module):
         # build outputs
         # part 1: from original levels
         outs = [
-            self.fpn_convs[i](laterals[i]) for i in range(len(laterals))
+            self.fpns_convs[i](laterals[i]) for i in range(len(laterals))
         ]
         used_backbone_levels = len(laterals)
         # part 2: add extra levels
@@ -167,14 +167,14 @@ class kiteFPN(nn.Module):
             else:
                 if self.extra_convs_on_inputs:
                     orig = inputs[self.backbone_end_level - 1]
-                    outs.append(self.fpn_convs[used_backbone_levels](orig))
+                    outs.append(self.fpns_convs[used_backbone_levels](orig))
                 else:
-                    outs.append(self.fpn_convs[used_backbone_levels](outs[-1]))
+                    outs.append(self.fpns_convs[used_backbone_levels](outs[-1]))
                 for i in range(used_backbone_levels + 1, self.num_outs):
                     if self.relu_before_extra_convs:
-                        outs.append(self.fpn_convs[i](F.relu(outs[-1])))
+                        outs.append(self.fpns_convs[i](F.relu(outs[-1])))
                     else:
-                        outs.append(self.fpn_convs[i](outs[-1]))
+                        outs.append(self.fpns_convs[i](outs[-1]))
         #print(len(outs))
         #print(outs[-1].shape)
         return tuple(outs)

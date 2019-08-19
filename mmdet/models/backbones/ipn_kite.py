@@ -509,22 +509,7 @@ class IPN_kite(nn.Module):
     def forward(self, input):
 
         parimad = []
-        """ 
-        size = (input.shape[2],input.shape[3])
-        batch = input.shape[0]
-        for i in range(self.num_stages):
-            tensor_ascale = []
-            for j in range(batch):
-                img_tensor = input.clone()
-                img = img_tensor[j].cpu().numpy().transpose(1, 2, 0)
-                img = mmcv.imdenormalize(img,mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375],to_bgr=False)
-                img, scale_factor = mmcv.imrescale(img,(size[0]/(2**i),size[1]/(2**i)), return_scale=True)
-                img = mmcv.imnormalize(img,mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375])
-                img = img.transpose(2, 0, 1)
-                tensor_ascale.append(torch.from_numpy(img).float().cuda())
-            parimad.append(torch.stack(tuple(tensor_ascale)))
-            #print("input size  : {}".format(parimad[i].shape))
-        """
+
         b, c, h, w = input.shape
         #print("INPUT")
 

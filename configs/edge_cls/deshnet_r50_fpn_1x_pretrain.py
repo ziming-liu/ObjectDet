@@ -117,6 +117,6 @@ device_ids = range(8)
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = './work_dirs/deshnet_r50_fpn_1x'
-load_from = None#'./work_dirs/retinanet_r50_fpn_1x/epoch_12.pth'
+load_from = './work_dirs/retinanet_r50_fpn_1x/epoch_12.pth'
 resume_from = None
 workflow = [('train', 1)]
