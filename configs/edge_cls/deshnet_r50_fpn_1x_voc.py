@@ -3,21 +3,21 @@ model = dict(
     type='RetinaNet',
     pretrained='modelzoo://resnet50',
     backbone=dict(
-        type='IPN_kite',
+        type='ResNet',
         depth=50,
         num_stages=4,
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
-        style='pytorch', with_cp=True),
+        style='pytorch',with_cp=True),
     neck=dict(
-        type='kiteFPN',
-        in_channels=[256, 256, 256, 256, 512, 512, 512, 1024, 1024, 2048],
-        start_level=4,
+        type='FPN',
+        in_channels=[256, 512, 1024, 2048],
         out_channels=256,
+        start_level=1,
         add_extra_convs=True,
-        num_outs=7),
+        num_outs=5),
     bbox_head=dict(
-        type='RetinaHead',
+        type='DeshHead',
         num_classes=21,
         in_channels=256,
         stacked_convs=4,
@@ -25,15 +25,12 @@ model = dict(
         octave_base_scale=4,
         scales_per_octave=3,
         anchor_ratios=[0.5, 1.0, 2.0],
-        anchor_strides=[8/0.8333333,8/0.6666666,8/0.5,16/0.666666666,16/0.5,32/0.5,128],
+        anchor_strides=[8, 16, 32, 64, 128],
         target_means=[.0, .0, .0, .0],
         target_stds=[1.0, 1.0, 1.0, 1.0],
+        sampling=False,
         loss_cls=dict(
-            type='FocalLoss',
-            use_sigmoid=True,
-            gamma=2.0,
-            alpha=0.25,
-            loss_weight=1.0),
+            type='CrossEntropyLoss', use_sigmoid=True, loss_weight=1.0),
         loss_bbox=dict(type='SmoothL1Loss', beta=0.11, loss_weight=1.0)))
 # training and testing settings
 train_cfg = dict(
@@ -59,11 +56,11 @@ data_root = 'data/VOCdevkit/'
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 data = dict(
-    imgs_per_gpu=8,
+    imgs_per_gpu=12,
     workers_per_gpu=6,
     train=dict(
         type='RepeatDataset',  # to avoid reloading datasets frequently
-        times=3,
+        times=1,
         dataset=dict(
             type=dataset_type,
             ann_file=[
@@ -104,7 +101,7 @@ data = dict(
 optimizer = dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
 # learning policy
-lr_config = dict(policy='step', step=[3])  # actual epoch = 3 * 3 = 9
+lr_config = dict(policy='step', step=[7,11])  # actual epoch = 3 * 3 = 9
 checkpoint_config = dict(interval=1)
 # yapf:disable
 log_config = dict(
@@ -115,11 +112,12 @@ log_config = dict(
     ])
 # yapf:enable
 # runtime settings
-total_epochs = 4
+total_epochs = 12
 device_ids = range(8)
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/retinanet_r50_fpn_1x_voc_kite'
+work_dir = './work_dirs/deshnet_r50_fpn_1x_voc'
 load_from = None
 resume_from = None
 workflow = [('train', 1)]
+

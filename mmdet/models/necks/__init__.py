@@ -6,4 +6,6 @@ from .pinkfpn import pinkFPN
 from .fusingfpn import fusingFPN
 from .faltfpn import flatFPN
 from .kitefpn import kiteFPN
-__all__ = ['FPN', 'BFP', 'flatFPN','pinkFPN','fusingFPN', 'HRFPN','customFPN','kiteFPN']
+from .fpn_align import FPNalign
+from .kitefpn_align import kiteFPNalign
+__all__ = ['FPN', 'BFP', 'flatFPN','FPNalign','kiteFPNalign','pinkFPN','fusingFPN', 'HRFPN','customFPN','kiteFPN']

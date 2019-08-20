@@ -1,14 +1,16 @@
 # model settings
 model = dict(
     type='RetinaNet',
-    pretrained='modelzoo://resnet50',
+    pretrained='open-mmlab://resnext101_64x4d',
     backbone=dict(
-        type='IPN_kite',
-        depth=50,
+        type='KiteX',
+        depth=101,
+        groups=64,
+        base_width=4,
         num_stages=4,
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
-        style='pytorch', with_cp=True),
+        style='pytorch',with_cp=True),
     neck=dict(
         type='kiteFPN',
         in_channels=[256, 256, 256, 256, 512, 512, 512, 1024, 1024, 2048],
@@ -119,7 +121,7 @@ total_epochs = 4
 device_ids = range(8)
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/retinanet_r50_fpn_1x_voc_kite'
+work_dir = './work_dirs/retinanet_r101_fpn_1x_voc_kite'
 load_from = None
 resume_from = None
 workflow = [('train', 1)]

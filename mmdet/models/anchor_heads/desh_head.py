@@ -108,16 +108,23 @@ class DeshHead(AnchorHead):
         def to_onehot(labels):
             one_hots = []
             batchsize,n_lable = labels.shape
+
+
             for bi in range(batchsize):
                 bi_label = set(labels[bi].tolist())
                 bi_label = list(bi_label)
                 bi_label = [bi_label[i] for i in range(len(bi_label)) if bi_label[i]!=0]
-                #print(bi_label)
+
+                #bi_label = torch.LongTensor(list(set(labels[bi].tolist()))).cuda()-1
+                #bi_label = bi_label[bi_label>=0]
                 if len(bi_label) ==0:
                     one_hots.append(torch.zeros(1, self.cls_out_channels).cuda())
                 else:
                     idx = torch.LongTensor(list(bi_label)).reshape(1,-1).cuda() - 1
                     one_hots.append(torch.zeros(1, self.cls_out_channels).cuda().scatter_(1,idx,1))
+                    #one_hots.append(torch.zeros(1, self.cls_out_channels).cuda().scatter_(1, bi_label.reshape(1,-1), 1))
+
+
             #labels = labels.contiguous().view(-1,n_lable)
             #one_hot = torch.zeros(batchsize, self.cls_out_channels).cuda().scatter_(1, labels, 1)
             one_hots = torch.cat(one_hots,0)
