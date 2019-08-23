@@ -8,4 +8,5 @@ from .faltfpn import flatFPN
 from .kitefpn import kiteFPN
 from .fpn_align import FPNalign
 from .kitefpn_align import kiteFPNalign
-__all__ = ['FPN', 'BFP', 'flatFPN','FPNalign','kiteFPNalign','pinkFPN','fusingFPN', 'HRFPN','customFPN','kiteFPN']
+from .fam import FAM
+__all__ = ['FPN', 'BFP','FAM', 'flatFPN','FPNalign','kiteFPNalign','pinkFPN','fusingFPN', 'HRFPN','customFPN','kiteFPN']

@@ -60,7 +60,7 @@ class AnchorHead(nn.Module):
         self.use_sigmoid_cls = loss_cls.get('use_sigmoid', False)
         self.sampling = loss_cls['type'] not in ['FocalLoss', 'GHMC',]
         self.sampling = sampling if sampling is not None else self.sampling
-        if self.use_sigmoid_cls: #and self.num_classes==2: # 8.18
+        if self.use_sigmoid_cls and self.num_classes==2: # 8.18
             self.cls_out_channels = num_classes - 1
         else:
             self.cls_out_channels = num_classes

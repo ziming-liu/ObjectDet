@@ -3,14 +3,14 @@ model = dict(
     type='FasterRCNN',
     pretrained='modelzoo://resnet50',
     backbone=dict(
-        type='IPN_kite',
+        type='Kite',
         depth=50,
         num_stages=4,
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
         style='pytorch',with_cp=True),
     neck=dict(
-        type='kiteFPN',
+        type='FAM',
         in_channels=[256, 256, 256, 256, 512, 512, 512, 1024, 1024, 2048],
         out_channels=256,
         num_outs=10),
@@ -20,7 +20,7 @@ model = dict(
         feat_channels=256,
         anchor_scales=[8],
         anchor_ratios=[0.5, 1.0, 2.0],
-        anchor_strides=[4,4/0.8333333,4/0.66666666,4/0.5,8/0.8333333,8/0.6666666,8/0.5,16/0.666666666,16/0.5,32/0.5],
+        anchor_strides=[4,16,64,256],
         target_means=[.0, .0, .0, .0],
         target_stds=[1.0, 1.0, 1.0, 1.0],
         loss_cls=dict(
@@ -30,7 +30,7 @@ model = dict(
         type='SingleRoIExtractor',
         roi_layer=dict(type='RoIAlign', out_size=7, sample_num=2),
         out_channels=256,
-        featmap_strides=[4,4/0.8333333,4/0.66666666,4/0.5,8/0.8333333,8/0.6666666,8/0.5,16/0.666666666,16/0.5,32/0.5],),
+        featmap_strides=[4,16,64,256],),
     bbox_head=dict(
         type='SharedFCBBoxHead',
         num_fcs=2,
@@ -103,7 +103,7 @@ data_root = 'data/VOCdevkit/'
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 data = dict(
-    imgs_per_gpu=4,
+    imgs_per_gpu=6,
     workers_per_gpu=6,
     train=dict(
         type='RepeatDataset',  # to avoid reloading datasets frequently
@@ -126,7 +126,7 @@ data = dict(
         type=dataset_type,
         ann_file=data_root + 'VOC2007/ImageSets/Main/test.txt',
         img_prefix=data_root + 'VOC2007/',
-        img_scale=[(1333,800),(1000, 600),(800,400)],
+        img_scale=[(1000, 600)],
         img_norm_cfg=img_norm_cfg,
         size_divisor=32*8,
         flip_ratio=0,
@@ -152,7 +152,7 @@ lr_config = dict(policy='step', step=[16,20])  # actual epoch = 3 * 3 = 9
 checkpoint_config = dict(interval=1)
 # yapf:disable
 log_config = dict(
-    interval=50,
+    interval=10,
     hooks=[
         dict(type='TextLoggerHook'),
         # dict(type='TensorboardLoggerHook')
@@ -162,7 +162,7 @@ log_config = dict(
 total_epochs = 24  # actual epoch = 4 * 3 = 12
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/faster_rcnn_r50_fpn_1x_voc0712_kite'
+work_dir = './work_dirs/faster_rcnn_r50_fpn_1x_voc0712_kite_uper'
 load_from = './work_dirs/faster_rcnn_r50_fpn_1x_voc0712_kite/epoch_24.pth'
 resume_from = None# './work_dirs/faster_rcnn_r50_fpn_1x_voc0712_kite/epoch_24.pth'
 workflow = [('train', 1)]

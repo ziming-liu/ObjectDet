@@ -96,20 +96,35 @@ class DeshHead(AnchorHead):
         #print(labels[:50])
         label_weights = label_weights.reshape(-1)
         b,c,h,w = cls_score.shape
-        #cls_score = cls_score.permute(0, 2, 3,
-        #                             1).reshape(-1, self.cls_out_channels)
-        cls_score_h = cls_score.permute(0, 2, 3,
-                                      1).mean(2).reshape(-1, self.cls_out_channels)
-        cls_score_w = cls_score.permute(0, 2, 3,
-                                        1).mean(1).reshape(-1, self.cls_out_channels)
+        cls_score = cls_score.permute(0, 2, 3,
+                                     1).reshape(-1, self.cls_out_channels)
+        cls_score = cls_score - cls_score.mean(1).reshape(-1,1)
+        # 归一化 到-500 +500
+        #print(cls_score)
+        #min_score,_ = torch.min(cls_score,1)
+        #max_score,_ = torch.max(cls_score,1)
+       # k = (1000-(-1000)) / (max_score.reshape(-1,1) - min_score.reshape(-1,1))
+        #cls_score = -1000 + k*(cls_score-min_score.reshape(-1,1))
+        #print(cls_score)
+        cls_score = cls_score.reshape(b,h,w,c)
+        #cls_score = cls_score.scatter_(1,torch.zeros(cls_score.size(0),1).long().cuda(),1)
+        cls_score_h = cls_score.mean(2).reshape(-1, self.cls_out_channels)
+        #cls_score_h = cls_score_h.scatter_(1,torch.zeros(cls_score_h.size(0),1).long().cuda(),1)
+
+        cls_score_w = cls_score.mean(1).reshape(-1, self.cls_out_channels)
+        #cls_score_w = cls_score_w.scatter_(1,torch.zeros(cls_score_w.size(0),1).long().cuda(),1)
+
+        #cls_score_w = cls_score.permute(0, 2, 3,
+        #                                1).softmax(3).mean(1).reshape(-1, self.cls_out_channels)
         labels_grid = labels.contiguous().view(b,h,w,self.num_anchors)
         labels_grid_h = labels_grid.contiguous().permute(0,1,3,2).contiguous().view(-1,w)
         labels_grid_w = labels_grid.contiguous().permute(0,2,3,1).contiguous().view(-1,h)
+
         def to_onehot(labels):
             one_hots = []
             batchsize,n_lable = labels.shape
-
-
+            one_hot = torch.zeros(batchsize, self.cls_out_channels).cuda().scatter_(1, labels, 1)
+            """ 
             for bi in range(batchsize):
                 bi_label = set(labels[bi].tolist())
                 bi_label = list(bi_label)
@@ -128,17 +143,27 @@ class DeshHead(AnchorHead):
             #labels = labels.contiguous().view(-1,n_lable)
             #one_hot = torch.zeros(batchsize, self.cls_out_channels).cuda().scatter_(1, labels, 1)
             one_hots = torch.cat(one_hots,0)
-            return one_hots
+            """
+            return one_hot
+
         labels_grid_h = to_onehot(labels_grid_h)#.contiguous().view(-1,self.cls_out_channels)
         labels_grid_w = to_onehot(labels_grid_w)#.contiguous().view(-1,self.cls_out_channels)
         #print(labels_grid_w[:5,40])
         #print(labels_grid_h[:5,40:])
         #cls_score_h = cls_score_h.sigmoid()
         #cls_score_w = cls_score_w.sigmoid()
+        #print(cls_score_w[100:111])
+        #print(labels_grid_w[100:111])
+        #print(cls_score_w.shape[0])
+        label_weights_h = torch.ones(labels_grid_h.size(0),self.cls_out_channels).cuda() \
+            .scatter_(1, torch.zeros(labels_grid_h.size(0), 1).long().cuda(), 0)
+        label_weights_w = torch.ones(labels_grid_w.size(0), self.cls_out_channels).cuda() \
+            .scatter_(1, torch.zeros(labels_grid_w.size(0), 1).long().cuda(), 0)
+        #print(label_weights_h)
         loss_cls_h = self.loss_cls(
-            cls_score_h, labels_grid_h, None, avg_factor=cls_score_h.shape[0])
+            cls_score_h, labels_grid_h, label_weights_h, avg_factor=cls_score_h.shape[0]*self.cls_out_channels)
         loss_cls_w = self.loss_cls(
-            cls_score_w, labels_grid_w, None, avg_factor=cls_score_w.shape[0])
+            cls_score_w, labels_grid_w, label_weights_w, avg_factor=cls_score_w.shape[0]*self.cls_out_channels)
 
         #loss_cls = self.loss_cls(
         #    cls_score, labels, label_weights, avg_factor=num_total_samples)
@@ -212,6 +237,7 @@ class DeshHead(AnchorHead):
         for cls_score, bbox_pred, anchors in zip(cls_scores, bbox_preds,
                                                  mlvl_anchors):
             assert cls_score.size()[-2:] == bbox_pred.size()[-2:]
+            """ 
             c,h,w = cls_score.shape
             assert c//self.num_anchors==self.cls_out_channels
             cls_score_h = cls_score.permute(1,2,0).mean(1).reshape(-1,c)
@@ -226,13 +252,17 @@ class DeshHead(AnchorHead):
                 for wi in range(w):
                     cls_score[hi][wi] = scores_h[hi] + scores_w[wi]
             cls_score = cls_score.reshape(-1,self.cls_out_channels)
-            #cls_score = cls_score.permute(1, 2,
-            #                              0).reshape(-1, self.cls_out_channels)
-
+            """
+            cls_score = cls_score.permute(1, 2,
+                                          0).reshape(-1, self.cls_out_channels)
+            cls_score = cls_score[:,1:]
+            #print(cls_score)
             if self.use_sigmoid_cls:
-                scores = cls_score.sigmoid()
-            else:
                 scores = cls_score.softmax(-1)
+            else:
+
+                scores = cls_score.softmax(-1)
+           # print(scores)
             bbox_pred = bbox_pred.permute(1, 2, 0).reshape(-1, 4)
             nms_pre = cfg.get('nms_pre', -1)
             if nms_pre > 0 and scores.shape[0] > nms_pre:

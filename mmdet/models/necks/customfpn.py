@@ -1,7 +1,8 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from mmcv.cnn import xavier_init
-
+from mmdet.models.necks.self_attention import MultiHeadAttention
 from mmdet.core import auto_fp16
 from ..registry import NECKS
 from ..utils import ConvModule
@@ -20,6 +21,7 @@ class customFPN(nn.Module):
                  extra_convs_on_inputs=True,
                  relu_before_extra_convs=False,
                  interval=2,
+                 with_att=False,
                  conv_cfg=None,
                  norm_cfg=None,
                  activation=None):
@@ -33,6 +35,7 @@ class customFPN(nn.Module):
         self.relu_before_extra_convs = relu_before_extra_convs
         self.fp16_enabled = False
         self.interval = interval
+        self.with_att = with_att
         if end_level == -1:
             self.backbone_end_level = self.num_ins
             assert num_outs >= self.num_ins - start_level
@@ -48,6 +51,16 @@ class customFPN(nn.Module):
         self.outs_stides = []
         self.lateral_convs = nn.ModuleList()
         self.fpn_convs = nn.ModuleList()
+        if with_att:
+            # self.attention2048 = MultiHeadAttention(n_head=3,d_model=2048,d_v=2048,d_k=2048)
+            # self.attention1024 = MultiHeadAttention(n_head=3,d_model=1024,d_v=1024,d_k=1024)
+            # self.attention512 = MultiHeadAttention(n_head=3,d_model=512,d_v=512,d_k=512)
+            # self.attentionlv0 = MultiHeadAttention(n_head=3,d_model=256,d_v=256,d_k=256)
+            self.attentionlv1 = MultiHeadAttention(n_head=3, d_model=256, d_v=64, d_k=64)
+            self.attentionlv2 = MultiHeadAttention(n_head=3, d_model=256, d_v=64, d_k=64)
+            self.attentionlv3 = MultiHeadAttention(n_head=3, d_model=256, d_v=64, d_k=64)
+
+            self.maxpooling = nn.AdaptiveMaxPool2d((6, 6))  # nn.MaxPool2d(kernel_size=6,stride=6,padding=0)
 
         for i in range(self.start_level, self.backbone_end_level):
             l_conv = ConvModule(
@@ -116,7 +129,38 @@ class customFPN(nn.Module):
             scale_factor = laterals[i-1].shape[3] / laterals[i].shape[3]
             next = F.interpolate(
                 laterals[i], scale_factor=scale_factor, mode='nearest')
-            laterals[i-1] = laterals[i-1]
+            if self.with_att:
+                # 2 得到pooling的小的全局特征
+                global_feat = self.maxpooling(laterals[i])
+                # 3 根据全局特征 去 补充插值结果缺失的特征信息
+                b1, c1, h1, w1 = next.shape
+                next = next.reshape(b1, c1, -1).permute(0, 2, 1)
+                # 索引缩小 过大的特征图
+                threshold = 36
+                if h1 > threshold and w1 > threshold:
+                    hidx = torch.LongTensor([i for i in range(0, h1, h1 // threshold)]).cuda()
+                    widx = torch.LongTensor([i for i in range(0, w1, w1 // threshold)]).cuda()
+                    idx = w1 * hidx.repeat(len(widx), 1).t().reshape(-1) + widx.repeat(1, len(hidx)).reshape(-1)
+                    # print(idx)
+                    sparse_Next = next[:, idx, :]
+                    # print(len(idx))
+                else:
+                    sparse_Next = next[:, :, :]
+                b2, c2, h2, w2 = global_feat.shape
+                global_feat = global_feat.reshape(b2, c2, -1).permute(0, 2, 1)
+                # if i == 0:
+                #    next = self.attentionlv0(next, global_feat, global_feat)
+                if i == 1:
+                    sparse_Next = self.attentionlv1(sparse_Next, global_feat, global_feat)
+                elif i == 2:
+                    sparse_Next = self.attentionlv2(sparse_Next, global_feat, global_feat)
+                elif i == 3:
+                    sparse_Next = self.attentionlv3(sparse_Next, global_feat, global_feat)
+                if h1 > threshold and w1 > threshold:
+                    next[:, idx, :] = sparse_Next
+                else:
+                    next = sparse_Next
+                next = next.permute(0, 2, 1).reshape(b1, c1, h1, w1)
             w = min(next.shape[3],laterals[i-1].shape[3])
             h = min(next.shape[2],laterals[i-1].shape[2])
             next = next[:,:,:h,:w]

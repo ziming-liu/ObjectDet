@@ -9,4 +9,5 @@ from .ipn_fusing import IPN_fusing
 from .ipn_kite import IPN_kite
 from .resnext_kite import KiteX
 from .ssd_vgg_kite import SSDVGGkite
-__all__ = ['ResNet', 'IPN_share','KiteX', 'SSDVGGkite','IPN_kite','IPN_fusing', 'ResNetS','make_res_layer','IPN_sharev2', 'ResNeXt', 'SSDVGG', 'HRNet']
+from .kite import Kite
+__all__ = ['ResNet', 'Kite', 'IPN_share','KiteX', 'SSDVGGkite','IPN_kite','IPN_fusing', 'ResNetS','make_res_layer','IPN_sharev2', 'ResNeXt', 'SSDVGG', 'HRNet']

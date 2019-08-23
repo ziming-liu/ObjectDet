@@ -7,8 +7,8 @@ import torch.nn.functional as F
 from mmcv.cnn import constant_init, kaiming_init
 from mmcv.runner import load_checkpoint
 import mmcv
-from mmdet.models.necks.self_attention import MultiHeadAttention
 
+from mmdet.models.utils import ConvModule
 from mmdet.ops import DeformConv, ModulatedDeformConv, ContextBlock
 from mmdet.models.plugins import GeneralizedAttention
 
@@ -333,7 +333,7 @@ def make_res_layer(block,
 
 
 @BACKBONES.register_module
-class IPN_kite(nn.Module):
+class Kite(nn.Module):
     """ResNet backbone.
 
     Args:
@@ -376,7 +376,6 @@ class IPN_kite(nn.Module):
                  conv_cfg=None,
                  norm_cfg=dict(type='BN', requires_grad=True),
                  norm_eval=True,
-                 with_att=False,
                  dcn=None,
                  stage_with_dcn=(False, False, False, False),
                  gcb=None,
@@ -385,11 +384,10 @@ class IPN_kite(nn.Module):
                  stage_with_gen_attention=((), (), (), ()),
                  with_cp=False,
                  zero_init_residual=True):
-        super(IPN_kite, self).__init__()
+        super(Kite, self).__init__()
         if depth not in self.arch_settings:
             raise KeyError('invalid depth {} for resnet'.format(depth))
         self.depth = depth
-        self.with_att = with_att
         self.num_stages = num_stages
         assert num_stages >= 1 and num_stages <= 4
         self.strides = strides
@@ -416,14 +414,24 @@ class IPN_kite(nn.Module):
         self.block, stage_blocks = self.arch_settings[depth]
         self.stage_blocks = stage_blocks[:num_stages]
         self.inplanes = 64
-        if with_att:
-            #self.attention2048 = MultiHeadAttention(n_head=3,d_model=2048,d_v=2048,d_k=2048)
-            self.attention1024 = MultiHeadAttention(n_head=3,d_model=1024,d_v=64,d_k=64)
-            self.attention512 = MultiHeadAttention(n_head=3,d_model=512,d_v=64,d_k=64)
-            self.attention256 = MultiHeadAttention(n_head=3,d_model=256,d_v=64,d_k=64)
-            self.maxpooling = nn.AdaptiveMaxPool2d((6,6))#nn.MaxPool2d(kernel_size=6,stride=6,padding=0)
 
         self._make_stem_layer()
+        self.channel_setting = [256,512,1024,2048]
+        self.dconvs = nn.ModuleList(nn.ModuleList() for _ in range(self.num_stages))
+        for i in range(self.num_stages):
+            for j in range(self.num_stages-i-1):
+                dconv =ConvModule(
+                                    self.channel_setting[i],
+                                    self.channel_setting[i],
+                                    3,
+                                    stride=2,
+                                    padding=2,
+                                    dilation=2,
+                                    conv_cfg=conv_cfg,
+                                    norm_cfg=norm_cfg,
+                                    activation=None,
+                                    inplace=False)
+                self.dconvs[i].append(dconv)
 
         self.res_layers = []
         for i, num_blocks in enumerate(self.stage_blocks):
@@ -523,12 +531,12 @@ class IPN_kite(nn.Module):
 
         #print(input.shape)
         edge = max(h,w)
-        range_ = edge - edge/2
+        #range_ = edge - edge/2
         #print("inter {}".format(range_/4))
-        scale_factor = [edge/edge,(edge-range_/3)/edge,(edge-range_*2/3)/edge,(edge-range_*3/3)/edge]
+        #scale_factor = [edge/edge,(edge-range_/3)/edge,(edge-range_*2/3)/edge,(edge-range_*3/3)/edge]
         #print(scale_factor)
         for i in range(self.num_stages):
-            parimad.append(F.interpolate(input.clone(),scale_factor=scale_factor[i],mode='nearest'))
+            parimad.append(F.interpolate(input.clone(),scale_factor=2**(-i),mode='nearest'))
 
         parimad_feats = []
         for i in range(self.num_stages):
@@ -550,49 +558,8 @@ class IPN_kite(nn.Module):
                 else:
                     left_Node = outs[lvl-1][nodeidx+1]
                     down_Node = outs[lvl-1][nodeidx]
-                    # 1 得到插值结果
-                    scale_factor = left_Node.shape[2] / down_Node.shape[2]
-                    next = F.interpolate(down_Node, scale_factor=scale_factor, )
-
-                    if self.with_att:
-                        # 2 得到pooling的小的全局特征
-                        global_feat = self.maxpooling(down_Node)
-                        # 3 根据全局特征 去 补充插值结果缺失的特征信息
-                        b1, c1, h1, w1 = next.shape
-                       # print(h1*w1)
-                        next = next.reshape(b1, c1, -1).permute(0, 2, 1)
-                        # 索引缩小 过大的特征图
-                        threshold = 30
-                        if h1>threshold and w1>threshold:
-                            hidx = torch.LongTensor([i for i in range(0,h1,h1//threshold)]).cuda()
-                            widx = torch.LongTensor([i for i in range(0, w1, w1 // threshold)]).cuda()
-                            idx = w1 * hidx.repeat(len(widx),1).t().reshape(-1) + widx.repeat(1,len(hidx)).reshape(-1)
-                            #print(idx)
-                            sparse_Next = next[:, idx, :]
-                            #print(len(idx))
-                        else:
-                            sparse_Next = next[:,:,:]
-
-                        b2, c2, h2, w2 = global_feat.shape
-                        global_feat = global_feat.reshape(b2, c2, -1).permute(0, 2, 1)
-                        if lvl-1==0:
-                            sparse_Next = self.attention256(sparse_Next,global_feat,global_feat)
-                        elif lvl-1==1:
-                            sparse_Next = self.attention512(sparse_Next, global_feat, global_feat)
-                        elif lvl-1==2:
-                            sparse_Next = self.attention1024(sparse_Next, global_feat, global_feat)
-                        #elif lvl-1==3:
-                        #    next = self.attention2048(next, global_feat, global_feat)
-                        if h1 > threshold and w1 > threshold:
-                            next[:,idx,:] = sparse_Next
-                        else:
-                            next = sparse_Next
-                        next = next.permute(0,2,1).reshape(b1,c1,h1,w1)
-
-                    w = min(next.shape[3], left_Node.shape[3])
-                    h = min(next.shape[2], left_Node.shape[2])
-                    left_Node = left_Node[:, :, :h, :w]
-                    left_Node = (left_Node + next[:, :, :h, :w]) / 2.0
+                    down_Node = self.dconvs[lvl-1][nodeidx](down_Node)
+                    left_Node = (left_Node + down_Node) / 2.0
                     outs[lvl].append(res_layer(left_Node))
 
         #col_outs =[]
@@ -612,11 +579,10 @@ class IPN_kite(nn.Module):
         return tuple(finalouts)
 
     def train(self, mode=True):
-        super(IPN_kite, self).train(mode)
+        super(Kite, self).train(mode)
         self._freeze_stages()
         if mode and self.norm_eval:
             for m in self.modules():
                 # trick: eval have effect on BatchNorm only
                 if isinstance(m, _BatchNorm):
                     m.eval()
-
