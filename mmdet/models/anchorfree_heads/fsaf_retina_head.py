@@ -41,12 +41,22 @@ class FSAF_RETINA_Head(nn.Module):
                  target_means=(.0, .0, .0, .0),
                  target_stds=(1.0, 1.0, 1.0, 1.0),
                  cross=2,
-                 loss_cls=dict(
-                     type='CrossEntropyLoss',
+                 loss_cls_ab=dict(
+                     type='FocalLoss',
                      use_sigmoid=True,
+                     gamma=2.0,
+                     alpha=0.25,
                      loss_weight=1.0),
-                 loss_bbox=dict(
-                     type='SmoothL1Loss', beta=1.0 / 9.0, loss_weight=1.0)):
+                 loss_bbox_ab=dict(
+                     type='SmoothL1Loss', beta=1.0 / 9.0, loss_weight=1.0),
+                 loss_cls_af=dict(
+                     type='FocalLoss',
+                     use_sigmoid=True,
+                     gamma=2.0,
+                     alpha=0.25,
+                     loss_weight=1.0),
+                 loss_bbox_af=dict(type='Select_Iou_Loss', eps=1e-6, reduction='mean', loss_weight=1.0)
+                 ):
         super(FSAF_RETINA_Head, self).__init__()
         self.num_classes = num_classes
         self.in_channels = in_channels
@@ -69,15 +79,17 @@ class FSAF_RETINA_Head(nn.Module):
             anchor_strides) if anchor_base_sizes is None else anchor_base_sizes
         self.target_means = target_means
         self.target_stds = target_stds
-        self.use_sigmoid_cls = loss_cls.get('use_sigmoid', False)
+        self.use_sigmoid_cls = loss_cls_ab.get('use_sigmoid', False)
 
-        self.sampling = loss_cls['type'] not in ['FocalLoss']
+        self.sampling = loss_cls_ab['type'] not in ['FocalLoss']
         if self.use_sigmoid_cls:
             self.cls_out_channels = num_classes - 1
         else:
             self.cls_out_channels = num_classes
-        self.loss_cls = build_loss(loss_cls)
-        self.loss_bbox = build_loss(loss_bbox)
+        self.loss_cls_ab = build_loss(loss_cls_ab)
+        self.loss_bbox_ab = build_loss(loss_bbox_ab)
+        self.loss_cls_af = build_loss(loss_cls_af)
+        self.loss_bbox_af = build_loss(loss_bbox_af)
 
         self.anchor_generators = []
         for anchor_base in self.anchor_base_sizes:
@@ -201,14 +213,14 @@ class FSAF_RETINA_Head(nn.Module):
         #prob_ = prob.view(1,-1).repeat(cls_score.shape[0], 1)
         #cls_score = cls_score * prob_
 
-        loss_cls = self.loss_cls(
+        loss_cls = self.loss_cls_ab(
             cls_score, labels, label_weights, avg_factor=num_total_samples)
 
         # regression loss
         bbox_targets = bbox_targets.reshape(-1, 4)
         bbox_weights = bbox_weights.reshape(-1, 4)
         bbox_pred = bbox_pred.permute(0, 2, 3, 1).reshape(-1, 4)
-        loss_bbox = self.loss_bbox(
+        loss_bbox = self.loss_bbox_ab(
             bbox_pred,
             bbox_targets,
             bbox_weights,
@@ -222,20 +234,11 @@ class FSAF_RETINA_Head(nn.Module):
         label_weights = label_weights.reshape(-1)
         cls_score = cls_score.permute(0, 2, 3,
                                       1).reshape(-1, self.cls_out_channels)
-        #print("cls {}".format(cls_score.shape))
-        #prob = torch.FloatTensor(
-        #    [1 - 0.23, 1 - 0.08, 1 - 0.03, 1 - 0.42, 1 - 0.07, 1 - 0.04, 1 - 0.01, 1 - 0.01, 1 - 0.02, 1 - 0.09]).cuda()
-        #print(" prob {}".format(prob.shape))
-        #prob = torch.exp(prob)
-        #prob_ = prob.view(1,-1).repeat(cls_score.shape[0], 1)
-        #cls_score = cls_score * prob_
-
-        loss_cls = weighted_sigmoid_focal_loss(
+        loss_cls = self.loss_cls_af(
             cls_score,
             labels,
             label_weights,
-            cfg.gamma,
-            cfg.alpha,
+
             avg_factor=num_total_samples)
         # localization loss
         if bbox_targets.size(0) == 0:
@@ -244,13 +247,12 @@ class FSAF_RETINA_Head(nn.Module):
             bbox_pred = bbox_pred.permute(0, 2, 3, 1)
             bbox_pred = bbox_pred[bbox_locs[:, 0], bbox_locs[:, 1],
                                   bbox_locs[:, 2], :]
-            loss_reg = select_iou_loss(
+            loss_reg = self.loss_bbox_af(
                 bbox_pred,
                 bbox_targets,
                 cfg.bbox_reg_weight,
                 avg_factor=num_total_samples)
         return loss_cls, loss_reg
-
     def loss(self,
              cls_scores,
              bbox_preds,
@@ -258,7 +260,7 @@ class FSAF_RETINA_Head(nn.Module):
              gt_labels,
              img_metas,
              cfg,
-             gt_bboxes_ignore=None,refine_bbox_preds=None):
+             gt_bboxes_ignore=None,):
         #print(len(cls_scores[0]))
         #print(len(cls_scores))
         fsaf_cls_scores=[]
@@ -313,7 +315,7 @@ class FSAF_RETINA_Head(nn.Module):
             gt_bboxes_ignore_list=gt_bboxes_ignore,
             gt_labels_list=gt_labels,
             label_channels=label_channels,
-            sampling=self.sampling,refine_bbox_pred=refine_bbox_preds)
+            sampling=self.sampling,)
         if cls_reg_targets is None:
             return None
         (labels_list, label_weights_list, bbox_targets_list, bbox_weights_list,
@@ -537,8 +539,8 @@ class FSAF_RETINA_Head(nn.Module):
                     scores = cls_score[locs_yy, locs_xx, :]
                     labels = gt_labels[i].repeat(avg_factor)
                     label_weights = torch.ones_like(labels).float()
-                    loss_cls = weighted_sigmoid_focal_loss(
-                        scores, labels, label_weights, cfg.gamma, cfg.alpha,
+                    loss_cls = self.loss_cls_af(
+                        scores, labels, label_weights,  # cfg.gamma, cfg.alpha,
                         avg_factor)
                     # localization iou loss
                     deltas = bbox_pred[locs_yy, locs_xx, :]
@@ -554,8 +556,8 @@ class FSAF_RETINA_Head(nn.Module):
                     shifts[:, 1] = shifts[:, 1] - gt_bboxes[i, 1]
                     shifts[:, 2] = gt_bboxes[i, 2] - shifts[:, 2]
                     shifts[:, 3] = gt_bboxes[i, 3] - shifts[:, 3]
-                    loss_loc = select_iou_loss(deltas, shifts / norm,
-                                               cfg.bbox_reg_weight, avg_factor)
+                    loss_loc = self.loss_bbox_af(deltas, shifts / norm,
+                                              cfg.bbox_reg_weight, avg_factor)
                     feat_losses[i, lvl] = loss_cls + loss_loc
             feat_levels = torch.argmin(feat_losses, dim=1)
         else:

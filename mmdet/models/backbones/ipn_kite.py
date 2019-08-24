@@ -8,6 +8,7 @@ from mmcv.cnn import constant_init, kaiming_init
 from mmcv.runner import load_checkpoint
 import mmcv
 from mmdet.models.necks.self_attention import MultiHeadAttention
+from mmdet.models.utils import ConvModule
 
 from mmdet.ops import DeformConv, ModulatedDeformConv, ContextBlock
 from mmdet.models.plugins import GeneralizedAttention
@@ -377,6 +378,7 @@ class IPN_kite(nn.Module):
                  norm_cfg=dict(type='BN', requires_grad=True),
                  norm_eval=True,
                  with_att=False,
+                 without_ip=False,
                  dcn=None,
                  stage_with_dcn=(False, False, False, False),
                  gcb=None,
@@ -389,6 +391,7 @@ class IPN_kite(nn.Module):
         if depth not in self.arch_settings:
             raise KeyError('invalid depth {} for resnet'.format(depth))
         self.depth = depth
+        self.without_ip = without_ip
         self.with_att = with_att
         self.num_stages = num_stages
         assert num_stages >= 1 and num_stages <= 4
@@ -424,7 +427,22 @@ class IPN_kite(nn.Module):
             self.maxpooling = nn.AdaptiveMaxPool2d((6,6))#nn.MaxPool2d(kernel_size=6,stride=6,padding=0)
 
         self._make_stem_layer()
-
+        self.channel_setting = [256, 512, 1024, 2048]
+        self.dconvs = nn.ModuleList()
+        for i in range(self.num_stages-1):
+            #for j in range(self.num_stages - i - 1):
+            dconv = ConvModule(
+                self.channel_setting[i],
+                self.channel_setting[i],
+                3,
+                stride=1,
+                padding=2,
+                dilation=2,
+                conv_cfg=conv_cfg,
+                norm_cfg=norm_cfg,
+                activation=None,
+                inplace=False)
+            self.dconvs.append(dconv)
         self.res_layers = []
         for i, num_blocks in enumerate(self.stage_blocks):
             stride = strides[i]
@@ -527,8 +545,12 @@ class IPN_kite(nn.Module):
         #print("inter {}".format(range_/4))
         scale_factor = [edge/edge,(edge-range_/3)/edge,(edge-range_*2/3)/edge,(edge-range_*3/3)/edge]
         #print(scale_factor)
-        for i in range(self.num_stages):
-            parimad.append(F.interpolate(input.clone(),scale_factor=scale_factor[i],mode='nearest'))
+        if self.without_ip:
+            for i in range(self.num_stages):
+                parimad.append(input.clone())
+        else:
+            for i in range(self.num_stages):
+                parimad.append(F.interpolate(input.clone(),scale_factor=scale_factor[i],mode='nearest'))
 
         parimad_feats = []
         for i in range(self.num_stages):
@@ -549,7 +571,7 @@ class IPN_kite(nn.Module):
                     outs[lvl].append(res_layer(parimad_feats[nodeidx]))
                 else:
                     left_Node = outs[lvl-1][nodeidx+1]
-                    down_Node = outs[lvl-1][nodeidx]
+                    down_Node = self.dconvs[lvl-1](outs[lvl-1][nodeidx])
                     # 1 得到插值结果
                     scale_factor = left_Node.shape[2] / down_Node.shape[2]
                     next = F.interpolate(down_Node, scale_factor=scale_factor, )
@@ -593,6 +615,8 @@ class IPN_kite(nn.Module):
                     h = min(next.shape[2], left_Node.shape[2])
                     left_Node = left_Node[:, :, :h, :w]
                     left_Node = (left_Node + next[:, :, :h, :w]) / 2.0
+                    # update left node
+                    outs[lvl - 1][nodeidx + 1] = left_Node
                     outs[lvl].append(res_layer(left_Node))
 
         #col_outs =[]
@@ -602,7 +626,6 @@ class IPN_kite(nn.Module):
         #        col_outs.append(outs[lvl][0])
         #        row_outs.append(outs[lvl][-1])
         finalouts = []
-
         for lvl in range(self.num_stages):
             if lvl not in self.out_indices:
                 continue

@@ -131,96 +131,99 @@ class kiteFPN(nn.Module):
 
         # build top-down path
         used_backbone_levels = len(level_list)
-        for i in range(used_backbone_levels - 1, 0, -1): # lvl
+        for i in range(used_backbone_levels - 1, -1, -1): # lvl
             num_add = len(level_list[i]) # == this level's nodes
-            for node_I in range(num_add):
+            for j in range(num_add):
+                node_I = num_add - j-1 # 大到小
                 # down node
-                scale_factor = level_list[i-1][node_I].shape[3] / level_list[i][node_I].shape[3]
-                #print("scale FPN")
-                #print(scale_factor)
-                next = F.interpolate(
-                    level_list[i][node_I], scale_factor=scale_factor, mode='nearest')
-                if self.with_att:
-                    # 2 得到pooling的小的全局特征
-                    global_feat = self.maxpooling(level_list[i][node_I])
-                    # 3 根据全局特征 去 补充插值结果缺失的特征信息
-                    b1, c1, h1, w1 = next.shape
-                    next = next.reshape(b1, c1, -1).permute(0, 2, 1)
-                    # 索引缩小 过大的特征图
-                    threshold = 30
-                    if h1 > threshold and w1 > threshold:
-                        hidx = torch.LongTensor([i for i in range(0, h1, h1 // threshold)]).cuda()
-                        widx = torch.LongTensor([i for i in range(0, w1, w1 // threshold)]).cuda()
-                        idx = w1 * hidx.repeat(len(widx), 1).t().reshape(-1) + widx.repeat(1, len(hidx)).reshape(-1)
-                        # print(idx)
-                        sparse_Next = next[:, idx, :]
-                        # print(len(idx))
-                    else:
-                        sparse_Next = next[:, :, :]
-                    b2, c2, h2, w2 = global_feat.shape
-                    global_feat = global_feat.reshape(b2, c2, -1).permute(0, 2, 1)
-                    #if i == 0:
-                    #    next = self.attentionlv0(next, global_feat, global_feat)
-                    if i == 1:
-                        sparse_Next = self.attentionlv1(sparse_Next, global_feat, global_feat)
-                    elif i == 2:
-                        sparse_Next = self.attentionlv2(sparse_Next, global_feat, global_feat)
-                    elif i == 3:
-                        sparse_Next = self.attentionlv3(sparse_Next, global_feat, global_feat)
-                    if h1 > threshold and w1 > threshold:
-                        next[:, idx, :] = sparse_Next
-                    else:
-                        next = sparse_Next
-                    next = next.permute(0, 2, 1).reshape(b1, c1, h1, w1)
+                if node_I!=0: # if not idx 0 for each level
+                    scale_factor = level_list[i][node_I-1].shape[3] / level_list[i][node_I].shape[3]
+                    #print("scale FPN")
+                    #print(scale_factor)
+                    next = F.interpolate(
+                        level_list[i][node_I], scale_factor=scale_factor, mode='nearest')
+                    if self.with_att:
+                        # 2 得到pooling的小的全局特征
+                        global_feat = self.maxpooling(level_list[i][node_I])
+                        # 3 根据全局特征 去 补充插值结果缺失的特征信息
+                        b1, c1, h1, w1 = next.shape
+                        next = next.reshape(b1, c1, -1).permute(0, 2, 1)
+                        # 索引缩小 过大的特征图
+                        threshold = 30
+                        if h1 > threshold and w1 > threshold:
+                            hidx = torch.LongTensor([i for i in range(0, h1, h1 // threshold)]).cuda()
+                            widx = torch.LongTensor([i for i in range(0, w1, w1 // threshold)]).cuda()
+                            idx = w1 * hidx.repeat(len(widx), 1).t().reshape(-1) + widx.repeat(1, len(hidx)).reshape(-1)
+                            # print(idx)
+                            sparse_Next = next[:, idx, :]
+                            # print(len(idx))
+                        else:
+                            sparse_Next = next[:, :, :]
+                        b2, c2, h2, w2 = global_feat.shape
+                        global_feat = global_feat.reshape(b2, c2, -1).permute(0, 2, 1)
+                        #if i == 0:
+                        #    next = self.attentionlv0(next, global_feat, global_feat)
+                        if i == 1:
+                            sparse_Next = self.attentionlv1(sparse_Next, global_feat, global_feat)
+                        elif i == 2:
+                            sparse_Next = self.attentionlv2(sparse_Next, global_feat, global_feat)
+                        elif i == 3:
+                            sparse_Next = self.attentionlv3(sparse_Next, global_feat, global_feat)
+                        if h1 > threshold and w1 > threshold:
+                            next[:, idx, :] = sparse_Next
+                        else:
+                            next = sparse_Next
+                        next = next.permute(0, 2, 1).reshape(b1, c1, h1, w1)
 
-                w = min(next.shape[3], level_list[i-1][node_I].shape[3])
-                h = min(next.shape[2], level_list[i-1][node_I].shape[2])
-                next = next[:, :, :h, :w]
-                level_list[i-1][node_I] = level_list[i-1][node_I][:, :, :h, :w]
-                level_list[i-1][node_I] = (next + level_list[i-1][node_I])/2.0
+                    w = min(next.shape[3], level_list[i][node_I-1].shape[3])
+                    h = min(next.shape[2], level_list[i][node_I-1].shape[2])
+                    next = next[:, :, :h, :w]
+                    level_list[i][node_I-1] = level_list[i][node_I-1][:, :, :h, :w]
+                    level_list[i][node_I-1] = (next + level_list[i][node_I-1])/2.0
                 # left node
-                scale_factor = level_list[i - 1][node_I+1].shape[3] / level_list[i][node_I].shape[3]
-                #print("scale FPN")
-                #print(scale_factor)
-                next = F.interpolate(
-                    level_list[i][node_I], scale_factor=scale_factor, mode='nearest')
-                if self.with_att:
-                    # 2 得到pooling的小的全局特征
-                    global_feat = self.maxpooling(level_list[i][node_I])
-                    # 3 根据全局特征 去 补充插值结果缺失的特征信息
-                    b1, c1, h1, w1 = next.shape
-                    next = next.reshape(b1, c1, -1).permute(0, 2, 1)
-                    # 索引缩小 过大的特征图
-                    threshold = 30
-                    if h1 > threshold and w1 > threshold:
-                        hidx = torch.LongTensor([i for i in range(0, h1, h1 // threshold)]).cuda()
-                        widx = torch.LongTensor([i for i in range(0, w1, w1 // threshold)]).cuda()
-                        idx = w1 * hidx.repeat(len(widx), 1).t().reshape(-1) + widx.repeat(1, len(hidx)).reshape(-1)
-                        # print(idx)
-                        sparse_Next = next[:, idx, :]
-                        # print(len(idx))
-                    else:
-                        sparse_Next = next[:, :, :]
-                    b2, c2, h2, w2 = global_feat.shape
-                    global_feat = global_feat.reshape(b2, c2, -1).permute(0, 2, 1)
-                    #if i == 0:
-                    #    next = self.attentionlv0(next, global_feat, global_feat)
-                    if i == 1:
-                        sparse_Next = self.attentionlv1(sparse_Next, global_feat, global_feat)
-                    elif i == 2:
-                        sparse_Next = self.attentionlv2(sparse_Next, global_feat, global_feat)
-                    elif i == 3:
-                        sparse_Next = self.attentionlv3(sparse_Next, global_feat, global_feat)
-                    if h1 > threshold and w1 > threshold:
-                        next[:, idx, :] = sparse_Next
-                    else:
-                        next = sparse_Next
-                    next = next.permute(0, 2, 1).reshape(b1, c1, h1, w1)
-                w = min(next.shape[3], level_list[i - 1][node_I+1].shape[3])
-                h = min(next.shape[2],level_list[i - 1][node_I+1].shape[2])
-                next = next[:, :, :h, :w]
-                level_list[i - 1][node_I+1] =level_list[i - 1][node_I+1][:, :, :h, :w]
-                level_list[i - 1][node_I+1] = (next + level_list[i - 1][node_I+1]) / 2.0
+                if i !=0: # if not level 0
+                    scale_factor = level_list[i - 1][node_I+1].shape[3] / level_list[i][node_I].shape[3]
+                    #print("scale FPN")
+                    #print(scale_factor)
+                    next = F.interpolate(
+                        level_list[i][node_I], scale_factor=scale_factor, mode='nearest')
+                    if self.with_att:
+                        # 2 得到pooling的小的全局特征
+                        global_feat = self.maxpooling(level_list[i][node_I])
+                        # 3 根据全局特征 去 补充插值结果缺失的特征信息
+                        b1, c1, h1, w1 = next.shape
+                        next = next.reshape(b1, c1, -1).permute(0, 2, 1)
+                        # 索引缩小 过大的特征图
+                        threshold = 30
+                        if h1 > threshold and w1 > threshold:
+                            hidx = torch.LongTensor([i for i in range(0, h1, h1 // threshold)]).cuda()
+                            widx = torch.LongTensor([i for i in range(0, w1, w1 // threshold)]).cuda()
+                            idx = w1 * hidx.repeat(len(widx), 1).t().reshape(-1) + widx.repeat(1, len(hidx)).reshape(-1)
+                            # print(idx)
+                            sparse_Next = next[:, idx, :]
+                            # print(len(idx))
+                        else:
+                            sparse_Next = next[:, :, :]
+                        b2, c2, h2, w2 = global_feat.shape
+                        global_feat = global_feat.reshape(b2, c2, -1).permute(0, 2, 1)
+                        #if i == 0:
+                        #    next = self.attentionlv0(next, global_feat, global_feat)
+                        if i == 1:
+                            sparse_Next = self.attentionlv1(sparse_Next, global_feat, global_feat)
+                        elif i == 2:
+                            sparse_Next = self.attentionlv2(sparse_Next, global_feat, global_feat)
+                        elif i == 3:
+                            sparse_Next = self.attentionlv3(sparse_Next, global_feat, global_feat)
+                        if h1 > threshold and w1 > threshold:
+                            next[:, idx, :] = sparse_Next
+                        else:
+                            next = sparse_Next
+                        next = next.permute(0, 2, 1).reshape(b1, c1, h1, w1)
+                    w = min(next.shape[3], level_list[i - 1][node_I+1].shape[3])
+                    h = min(next.shape[2],level_list[i - 1][node_I+1].shape[2])
+                    next = next[:, :, :h, :w]
+                    level_list[i - 1][node_I+1] =level_list[i - 1][node_I+1][:, :, :h, :w]
+                    level_list[i - 1][node_I+1] = (next + level_list[i - 1][node_I+1]) / 2.0
 
         # turn to small to big list
         laterals = []
