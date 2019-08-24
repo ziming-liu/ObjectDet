@@ -379,6 +379,8 @@ class IPN_kite(nn.Module):
                  norm_eval=True,
                  with_att=False,
                  without_ip=False,
+                 without_dconv=False,
+                 num_branch=4,
                  dcn=None,
                  stage_with_dcn=(False, False, False, False),
                  gcb=None,
@@ -393,6 +395,8 @@ class IPN_kite(nn.Module):
         self.depth = depth
         self.without_ip = without_ip
         self.with_att = with_att
+        self.without_dconv = without_dconv
+        self.num_branch = num_branch
         self.num_stages = num_stages
         assert num_stages >= 1 and num_stages <= 4
         self.strides = strides
@@ -424,7 +428,7 @@ class IPN_kite(nn.Module):
             self.attention1024 = MultiHeadAttention(n_head=3,d_model=1024,d_v=64,d_k=64)
             self.attention512 = MultiHeadAttention(n_head=3,d_model=512,d_v=64,d_k=64)
             self.attention256 = MultiHeadAttention(n_head=3,d_model=256,d_v=64,d_k=64)
-            self.maxpooling = nn.AdaptiveMaxPool2d((6,6))#nn.MaxPool2d(kernel_size=6,stride=6,padding=0)
+            self.maxpooling = nn.MaxPool2d(kernel_size=6,stride=6,padding=0)
 
         self._make_stem_layer()
         self.channel_setting = [256, 512, 1024, 2048]
@@ -543,17 +547,17 @@ class IPN_kite(nn.Module):
         edge = max(h,w)
         range_ = edge - edge/2
         #print("inter {}".format(range_/4))
-        scale_factor = [edge/edge,(edge-range_/3)/edge,(edge-range_*2/3)/edge,(edge-range_*3/3)/edge]
+        scale_factor = [(edge-range_*i/self.num_branch-1)/edge for i in range(self.num_branch)]
         #print(scale_factor)
         if self.without_ip:
             for i in range(self.num_stages):
                 parimad.append(input.clone())
         else:
-            for i in range(self.num_stages):
+            for i in range(self.num_branch):
                 parimad.append(F.interpolate(input.clone(),scale_factor=scale_factor[i],mode='nearest'))
 
         parimad_feats = []
-        for i in range(self.num_stages):
+        for i in range(self.num_branch):
             x = parimad[i]
             x = self.conv1(x)
             x = self.norm1(x)
@@ -563,63 +567,131 @@ class IPN_kite(nn.Module):
 
         outs = [[] for _ in range(self.num_stages)]
         for lvl in range(self.num_stages):
-            for nodeidx in range(0,self.num_stages-lvl):
+            if lvl < self.num_stages - self.num_branch+1:
+                for nodeidx in range(0, self.num_branch):
 
-                layer_name = self.res_layers[lvl]
-                res_layer = getattr(self, layer_name)
-                if lvl==0:
-                    outs[lvl].append(res_layer(parimad_feats[nodeidx]))
-                else:
-                    left_Node = outs[lvl-1][nodeidx+1]
-                    down_Node = self.dconvs[lvl-1](outs[lvl-1][nodeidx])
-                    # 1 得到插值结果
-                    scale_factor = left_Node.shape[2] / down_Node.shape[2]
-                    next = F.interpolate(down_Node, scale_factor=scale_factor, )
-
-                    if self.with_att:
-                        # 2 得到pooling的小的全局特征
-                        global_feat = self.maxpooling(down_Node)
-                        # 3 根据全局特征 去 补充插值结果缺失的特征信息
-                        b1, c1, h1, w1 = next.shape
-                       # print(h1*w1)
-                        next = next.reshape(b1, c1, -1).permute(0, 2, 1)
-                        # 索引缩小 过大的特征图
-                        threshold = 30
-                        if h1>threshold and w1>threshold:
-                            hidx = torch.LongTensor([i for i in range(0,h1,h1//threshold)]).cuda()
-                            widx = torch.LongTensor([i for i in range(0, w1, w1 // threshold)]).cuda()
-                            idx = w1 * hidx.repeat(len(widx),1).t().reshape(-1) + widx.repeat(1,len(hidx)).reshape(-1)
-                            #print(idx)
-                            sparse_Next = next[:, idx, :]
-                            #print(len(idx))
+                    layer_name = self.res_layers[lvl]
+                    res_layer = getattr(self, layer_name)
+                    if lvl == 0:
+                        outs[lvl].append(res_layer(parimad_feats[nodeidx]))
+                    elif nodeidx==0:
+                        outs[lvl].append(res_layer(outs[lvl-1][nodeidx]))
+                    else:
+                        left_Node = outs[lvl - 1][nodeidx]
+                        if self.without_dconv:
+                            down_Node = outs[lvl - 1][nodeidx-1]
                         else:
-                            sparse_Next = next[:,:,:]
+                            down_Node = self.dconvs[lvl - 1](outs[lvl - 1][nodeidx-1])
+                        # 1 得到插值结果
+                        scale_factor = left_Node.shape[2] / down_Node.shape[2]
+                        next = F.interpolate(down_Node, scale_factor=scale_factor, )
 
-                        b2, c2, h2, w2 = global_feat.shape
-                        global_feat = global_feat.reshape(b2, c2, -1).permute(0, 2, 1)
-                        if lvl-1==0:
-                            sparse_Next = self.attention256(sparse_Next,global_feat,global_feat)
-                        elif lvl-1==1:
-                            sparse_Next = self.attention512(sparse_Next, global_feat, global_feat)
-                        elif lvl-1==2:
-                            sparse_Next = self.attention1024(sparse_Next, global_feat, global_feat)
-                        #elif lvl-1==3:
-                        #    next = self.attention2048(next, global_feat, global_feat)
-                        if h1 > threshold and w1 > threshold:
-                            next[:,idx,:] = sparse_Next
+                        if self.with_att:
+                            # 2 得到pooling的小的全局特征
+                            global_feat = self.maxpooling(down_Node)
+                            # 3 根据全局特征 去 补充插值结果缺失的特征信息
+                            b1, c1, h1, w1 = next.shape
+                            # print(h1*w1)
+                            next = next.reshape(b1, c1, -1).permute(0, 2, 1)
+                            # 索引缩小 过大的特征图
+                            threshold = 30
+                            if h1 > threshold and w1 > threshold:
+                                hidx = torch.LongTensor([i for i in range(0, h1, h1 // threshold)]).cuda()
+                                widx = torch.LongTensor([i for i in range(0, w1, w1 // threshold)]).cuda()
+                                idx = w1 * hidx.repeat(len(widx), 1).t().reshape(-1) + widx.repeat(1,
+                                                                                                   len(hidx)).reshape(
+                                    -1)
+                                # print(idx)
+                                sparse_Next = next[:, idx, :]
+                                # print(len(idx))
+                            else:
+                                sparse_Next = next[:, :, :]
+
+                            b2, c2, h2, w2 = global_feat.shape
+                            global_feat = global_feat.reshape(b2, c2, -1).permute(0, 2, 1)
+                            if lvl - 1 == 0:
+                                sparse_Next = self.attention256(sparse_Next, global_feat, global_feat)
+                            elif lvl - 1 == 1:
+                                sparse_Next = self.attention512(sparse_Next, global_feat, global_feat)
+                            elif lvl - 1 == 2:
+                                sparse_Next = self.attention1024(sparse_Next, global_feat, global_feat)
+                            # elif lvl-1==3:
+                            #    next = self.attention2048(next, global_feat, global_feat)
+                            if h1 > threshold and w1 > threshold:
+                                next[:, idx, :] = sparse_Next
+                            else:
+                                next = sparse_Next
+                            next = next.permute(0, 2, 1).reshape(b1, c1, h1, w1)
+
+                        w = min(next.shape[3], left_Node.shape[3])
+                        h = min(next.shape[2], left_Node.shape[2])
+                        left_Node = left_Node[:, :, :h, :w]
+                        left_Node = (left_Node + next[:, :, :h, :w]) / 2.0
+                        # update left node
+                        outs[lvl - 1][nodeidx] = left_Node
+                        outs[lvl].append(res_layer(left_Node))
+
+            else:
+                for nodeidx in range(0,self.num_stages-lvl):
+
+                    layer_name = self.res_layers[lvl]
+                    res_layer = getattr(self, layer_name)
+                    if lvl==0:
+                        outs[lvl].append(res_layer(parimad_feats[nodeidx]))
+                    else:
+                        left_Node = outs[lvl-1][nodeidx+1]
+                        if self.without_dconv:
+                            down_Node = outs[lvl - 1][nodeidx]
                         else:
-                            next = sparse_Next
-                        next = next.permute(0,2,1).reshape(b1,c1,h1,w1)
+                            down_Node = self.dconvs[lvl-1](outs[lvl-1][nodeidx])
+                        # 1 得到插值结果
+                        scale_factor = left_Node.shape[2] / down_Node.shape[2]
+                        next = F.interpolate(down_Node, scale_factor=scale_factor, )
 
-                    w = min(next.shape[3], left_Node.shape[3])
-                    h = min(next.shape[2], left_Node.shape[2])
-                    left_Node = left_Node[:, :, :h, :w]
-                    left_Node = (left_Node + next[:, :, :h, :w]) / 2.0
-                    # update left node
-                    outs[lvl - 1][nodeidx + 1] = left_Node
-                    outs[lvl].append(res_layer(left_Node))
+                        if self.with_att:
+                            # 2 得到pooling的小的全局特征
+                            global_feat = self.maxpooling(down_Node)
+                            # 3 根据全局特征 去 补充插值结果缺失的特征信息
+                            b1, c1, h1, w1 = next.shape
+                           # print(h1*w1)
+                            next = next.reshape(b1, c1, -1).permute(0, 2, 1)
+                            # 索引缩小 过大的特征图
+                            threshold = 30
+                            if h1>threshold and w1>threshold:
+                                hidx = torch.LongTensor([i for i in range(0,h1,h1//threshold)]).cuda()
+                                widx = torch.LongTensor([i for i in range(0, w1, w1 // threshold)]).cuda()
+                                idx = w1 * hidx.repeat(len(widx),1).t().reshape(-1) + widx.repeat(1,len(hidx)).reshape(-1)
+                                #print(idx)
+                                sparse_Next = next[:, idx, :]
+                                #print(len(idx))
+                            else:
+                                sparse_Next = next[:,:,:]
 
-        #col_outs =[]
+                            b2, c2, h2, w2 = global_feat.shape
+                            global_feat = global_feat.reshape(b2, c2, -1).permute(0, 2, 1)
+                            if lvl-1==0:
+                                sparse_Next = self.attention256(sparse_Next,global_feat,global_feat)
+                            elif lvl-1==1:
+                                sparse_Next = self.attention512(sparse_Next, global_feat, global_feat)
+                            elif lvl-1==2:
+                                sparse_Next = self.attention1024(sparse_Next, global_feat, global_feat)
+                            #elif lvl-1==3:
+                            #    next = self.attention2048(next, global_feat, global_feat)
+                            if h1 > threshold and w1 > threshold:
+                                next[:,idx,:] = sparse_Next
+                            else:
+                                next = sparse_Next
+                            next = next.permute(0,2,1).reshape(b1,c1,h1,w1)
+
+                        w = min(next.shape[3], left_Node.shape[3])
+                        h = min(next.shape[2], left_Node.shape[2])
+                        left_Node = left_Node[:, :, :h, :w]
+                        left_Node = (left_Node + next[:, :, :h, :w]) / 2.0
+                        # update left node
+                        outs[lvl - 1][nodeidx + 1] = left_Node
+                        outs[lvl].append(res_layer(left_Node))
+
+            #col_outs =[]
         #row_outs = []
         #for lvl in range(len(outs)):
         #    for bran in range(len(outs[lvl])):
@@ -629,9 +701,10 @@ class IPN_kite(nn.Module):
         for lvl in range(self.num_stages):
             if lvl not in self.out_indices:
                 continue
-            n_Node = self.num_stages - lvl
-            for nodeidx in range(n_Node):
-                finalouts.append(outs[lvl][nodeidx])
+            finalouts.extend(outs[lvl])
+            #n_Node = self.num_stages - lvl
+            #for nodeidx in range(n_Node):
+            #    finalouts.append(outs[lvl][nodeidx])
         return tuple(finalouts)
 
     def train(self, mode=True):
