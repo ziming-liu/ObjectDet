@@ -20,6 +20,7 @@ class FPN(nn.Module):
                  extra_convs_on_inputs=True,
                  relu_before_extra_convs=False,
                  interval=2,
+                 keep=0,
                  conv_cfg=None,
                  norm_cfg=None,
                  activation=None):
@@ -29,6 +30,7 @@ class FPN(nn.Module):
         self.out_channels = out_channels
         self.num_ins = len(in_channels)
         self.num_outs = num_outs
+        self.keep = keep
         self.activation = activation
         self.relu_before_extra_convs = relu_before_extra_convs
         self.fp16_enabled = False
@@ -100,7 +102,6 @@ class FPN(nn.Module):
     @auto_fp16()
     def forward(self, inputs):
         assert len(inputs) == len(self.in_channels)
-
         # build laterals
         laterals = [
             lateral_conv(inputs[i + self.start_level])
@@ -109,7 +110,7 @@ class FPN(nn.Module):
 
         # build top-down path
         used_backbone_levels = len(laterals)
-        for i in range(used_backbone_levels - 1, 0, -1):
+        for i in range(len(laterals)- self.keep - 1, 0, -1):
             #print(laterals[i].shape)
            # print(F.interpolate(
             #    laterals[i], scale_factor=1.36, mode='nearest').shape)

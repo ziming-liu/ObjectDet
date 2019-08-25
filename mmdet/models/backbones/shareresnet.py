@@ -1,22 +1,16 @@
 import logging
-import torch
+
 import torch.nn as nn
 import torch.utils.checkpoint as cp
-from torch.nn.modules.batchnorm import _BatchNorm
-import torch.nn.functional as F
 from mmcv.cnn import constant_init, kaiming_init
 from mmcv.runner import load_checkpoint
-import mmcv
-from mmdet.models.necks.self_attention import MultiHeadAttention
-from mmdet.models.utils import ConvModule
+from torch.nn.modules.batchnorm import _BatchNorm
 
-from mmdet.ops import DeformConv, ModulatedDeformConv, ContextBlock
 from mmdet.models.plugins import GeneralizedAttention
-
+from mmdet.ops import ContextBlock, DeformConv, ModulatedDeformConv
 from ..registry import BACKBONES
 from ..utils import build_conv_layer, build_norm_layer
-
-
+from torch.nn  import functional as F
 class BasicBlock(nn.Module):
     expansion = 1
 
@@ -334,7 +328,7 @@ def make_res_layer(block,
 
 
 @BACKBONES.register_module
-class IPN_kite(nn.Module):
+class shareResNet(nn.Module):
     """ResNet backbone.
 
     Args:
@@ -359,46 +353,40 @@ class IPN_kite(nn.Module):
     """
 
     arch_settings = {
-        18: (BasicBlock, (2, 2, 2, 2)),
-        34: (BasicBlock, (3, 4, 6, 3)),
-        50: (Bottleneck, (3, 4, 6, 3)),
-        101: (Bottleneck, (3, 4, 23, 3)),
-        152: (Bottleneck, (3, 8, 36, 3))
+        18: (BasicBlock, (2, 2, 2, 2,1,1,1)),
+        34: (BasicBlock, (3, 4, 6, 3,2,2,2)),
+        50: (Bottleneck, (3, 4, 6, 3,2,2,2)),
+        101: (Bottleneck, (3, 4, 23, 3,2,2,2)),
+        152: (Bottleneck, (3, 8, 36, 3,2,2,2))
     }
 
     def __init__(self,
                  depth,
                  num_stages=4,
-                 strides=(1, 2, 2, 2),
-                 dilations=(1, 1, 1, 1),
-                 out_indices=(0, 1, 2, 3),
+                 strides=(1, 2, 2, 2,2 ,2,1),
+                 dilations=(1, 1, 1, 1,1,1,2),
+                 out_indices=(0, 1, 2, 3,4,5,6),
                  style='pytorch',
                  frozen_stages=-1,
                  conv_cfg=None,
                  norm_cfg=dict(type='BN', requires_grad=True),
                  norm_eval=True,
-                 with_att=False,
-                 without_ip=False,
-                 without_dconv=False,
-                 num_branch=4,
                  dcn=None,
-                 stage_with_dcn=(False, False, False, False),
+                 num_branch=4,
+                 stage_with_dcn=(False, False, False, False,False, False, False),
                  gcb=None,
-                 stage_with_gcb=(False, False, False, False),
+                 stage_with_gcb=(False, False, False, False,False, False, False),
                  gen_attention=None,
-                 stage_with_gen_attention=((), (), (), ()),
+                 stage_with_gen_attention=((), (), (), (),(), (), ()),
                  with_cp=False,
                  zero_init_residual=True):
-        super(IPN_kite, self).__init__()
+        super(shareResNet, self).__init__()
         if depth not in self.arch_settings:
             raise KeyError('invalid depth {} for resnet'.format(depth))
         self.depth = depth
-        self.without_ip = without_ip
-        self.with_att = with_att
-        self.without_dconv = without_dconv
         self.num_branch = num_branch
         self.num_stages = num_stages
-        assert num_stages >= 1 and num_stages <= 4
+        assert num_stages >= 1 and num_stages <= 7
         self.strides = strides
         self.dilations = dilations
         assert len(strides) == len(dilations) == num_stages
@@ -423,30 +411,9 @@ class IPN_kite(nn.Module):
         self.block, stage_blocks = self.arch_settings[depth]
         self.stage_blocks = stage_blocks[:num_stages]
         self.inplanes = 64
-        if with_att:
-            #self.attention2048 = MultiHeadAttention(n_head=3,d_model=2048,d_v=2048,d_k=2048)
-            self.attention1024 = MultiHeadAttention(n_head=3,d_model=1024,d_v=64,d_k=64)
-            self.attention512 = MultiHeadAttention(n_head=3,d_model=512,d_v=64,d_k=64)
-            self.attention256 = MultiHeadAttention(n_head=3,d_model=256,d_v=64,d_k=64)
-            self.maxpooling = nn.MaxPool2d(kernel_size=6,stride=6,padding=0)
 
         self._make_stem_layer()
-        self.channel_setting = [256, 512, 1024, 2048]
-        self.dconvs = nn.ModuleList()
-        for i in range(self.num_stages-1):
-            #for j in range(self.num_stages - i - 1):
-            dconv = ConvModule(
-                self.channel_setting[i],
-                self.channel_setting[i],
-                3,
-                stride=1,
-                padding=2,
-                dilation=2,
-                conv_cfg=conv_cfg,
-                norm_cfg=norm_cfg,
-                activation=None,
-                inplace=False)
-            self.dconvs.append(dconv)
+
         self.res_layers = []
         for i, num_blocks in enumerate(self.stage_blocks):
             stride = strides[i]
@@ -454,6 +421,8 @@ class IPN_kite(nn.Module):
             dcn = self.dcn if self.stage_with_dcn[i] else None
             gcb = self.gcb if self.stage_with_gcb[i] else None
             planes = 64 * 2**i
+            if i>=4:
+                planes = 64 *2**3
             res_layer = make_res_layer(
                 self.block,
                 self.inplanes,
@@ -537,204 +506,46 @@ class IPN_kite(nn.Module):
             raise TypeError('pretrained must be a str or None')
 
     def forward(self, input):
-
-        parimad = []
-
+        pyramid = []
         b, c, h, w = input.shape
-        #print("INPUT")
-
-        #print(input.shape)
-        edge = max(h,w)
-        range_ = edge - edge/2
-        #print("inter {}".format(range_/4))
-        scale_factor = [(edge-range_*i/self.num_branch-1)/edge for i in range(self.num_branch)]
-        #print(scale_factor)
-        if self.without_ip:
-            for i in range(self.num_stages):
-                parimad.append(input.clone())
-        else:
-            for i in range(self.num_branch):
-                parimad.append(F.interpolate(input.clone(),scale_factor=scale_factor[i],mode='nearest'))
-
-        parimad_feats = []
+        edge = max(h, w)
+        range_ = edge - edge / 2
+        #scale_factor = [(edge - range_ * i / self.num_branch - 1) / edge for i in range(self.num_branch)]
+        #if self.without_ip:
+        #    for i in range(self.num_stages):
+        #        parimad.append(input.clone())
+        #else:
         for i in range(self.num_branch):
-            x = parimad[i]
-            x = self.conv1(x)
-            x = self.norm1(x)
-            x = self.relu(x)
-            x = self.maxpool(x)
-            parimad_feats.append(x)
-
-        outs = [[] for _ in range(self.num_stages)]
-        for lvl in range(self.num_stages):
-            if lvl < self.num_stages - self.num_branch+1:
-                for nodeidx in range(0, self.num_branch):
-
-                    layer_name = self.res_layers[lvl]
-                    res_layer = getattr(self, layer_name)
-                    if lvl == 0:
-                        outs[lvl].append(res_layer(parimad_feats[nodeidx]))
-                    elif nodeidx==0:
-                        outs[lvl].append(res_layer(outs[lvl-1][nodeidx]))
-                    else:
-                        left_Node = outs[lvl - 1][nodeidx]
-                        if self.without_dconv:
-                            down_Node = outs[lvl - 1][nodeidx-1]
-                        else:
-                            down_Node = self.dconvs[lvl - 1](outs[lvl - 1][nodeidx-1])
-                        # 1 得到插值结果
-                        scale_factor = left_Node.shape[2] / down_Node.shape[2]
-                        next = F.interpolate(down_Node, scale_factor=scale_factor, )
-
-                        if self.with_att:
-                            # 2 得到pooling的小的全局特征
-                            global_feat = self.maxpooling(down_Node)
-                            # 3 根据全局特征 去 补充插值结果缺失的特征信息
-                            b1, c1, h1, w1 = next.shape
-                            # print(h1*w1)
-                            next = next.reshape(b1, c1, -1).permute(0, 2, 1)
-                            # 索引缩小 过大的特征图
-                            threshold = 50
-                            if h1 > threshold and w1 > threshold:
-                                hidx = torch.LongTensor([i for i in range(0, h1, h1 // 50)]).cuda()
-                                widx = torch.LongTensor([i for i in range(0, w1, w1 // 50)]).cuda()
-                                idx1 = w1 * hidx.repeat(len(widx), 1).t().reshape(-1) + widx.repeat(1,len(hidx)).reshape(-1)
-                                # print(idx)
-                                sparse_Next1 = next[:, idx1, :]
-                                hidx = torch.LongTensor([i for i in range(0, h1, h1 // 30)]).cuda()
-                                widx = torch.LongTensor([i for i in range(0, w1, w1 // 30)]).cuda()
-                                idx2 = w1 * hidx.repeat(len(widx), 1).t().reshape(-1) + widx.repeat(1,
-                                                                                                   len(hidx)).reshape(
-                                    -1)
-                                # print(idx)
-                                sparse_Next2 = next[:, idx2, :]
-                                hidx = torch.LongTensor([i for i in range(0, h1, h1 // 10)]).cuda()
-                                widx = torch.LongTensor([i for i in range(0, w1, w1 // 10)]).cuda()
-                                idx3 = w1 * hidx.repeat(len(widx), 1).t().reshape(-1) + widx.repeat(1,
-                                                                                                   len(hidx)).reshape(
-                                    -1)
-                                # print(idx)
-                                sparse_Next3 = next[:, idx3, :]
-                            else:
-                                sparse_Next1 = next[:, :, :]
-                                sparse_Next2 = next[:, :, :]
-                                sparse_Next3 = next[:, :, :]
-
-                            b2, c2, h2, w2 = global_feat.shape
-                            global_feat = global_feat.reshape(b2, c2, -1).permute(0, 2, 1)
-                            if lvl - 1 == 0:
-                                sparse_Next1 = self.attention256(sparse_Next1, global_feat, global_feat)
-                                sparse_Next2 = self.attention256(sparse_Next2, global_feat, global_feat)
-                                sparse_Next3 = self.attention256(sparse_Next3, global_feat, global_feat)
-                            elif lvl - 1 == 1:
-                                sparse_Next1 = self.attention256(sparse_Next1, global_feat, global_feat)
-                                sparse_Next2 = self.attention256(sparse_Next2, global_feat, global_feat)
-                                sparse_Next3 = self.attention256(sparse_Next3, global_feat, global_feat)
-                            elif lvl - 1 == 2:
-                                sparse_Next1 = self.attention256(sparse_Next1, global_feat, global_feat)
-                                sparse_Next2 = self.attention256(sparse_Next2, global_feat, global_feat)
-                                sparse_Next3 = self.attention256(sparse_Next3, global_feat, global_feat)
-                            # elif lvl-1==3:
-                            #    next = self.attention2048(next, global_feat, global_feat)
-                            if h1 > threshold and w1 > threshold:
-                                next[:, idx1, :] = sparse_Next1
-                                next[:, idx2, :] = sparse_Next2
-                                next[:, idx3, :] = sparse_Next3
-                            else:
-                                next = (sparse_Next1 + sparse_Next2 + sparse_Next3)/3.0
-
-                            next = next.permute(0, 2, 1).reshape(b1, c1, h1, w1)
-
-                        w = min(next.shape[3], left_Node.shape[3])
-                        h = min(next.shape[2], left_Node.shape[2])
-                        left_Node = left_Node[:, :, :h, :w]
-                        left_Node = (left_Node + next[:, :, :h, :w]) / 2.0
-                        # update left node
-                        outs[lvl - 1][nodeidx] = left_Node
-                        outs[lvl].append(res_layer(left_Node))
-
-            else:
-                for nodeidx in range(0,self.num_stages-lvl):
-
-                    layer_name = self.res_layers[lvl]
-                    res_layer = getattr(self, layer_name)
-                    if lvl==0:
-                        outs[lvl].append(res_layer(parimad_feats[nodeidx]))
-                    else:
-                        left_Node = outs[lvl-1][nodeidx+1]
-                        if self.without_dconv:
-                            down_Node = outs[lvl - 1][nodeidx]
-                        else:
-                            down_Node = self.dconvs[lvl-1](outs[lvl-1][nodeidx])
-                        # 1 得到插值结果
-                        scale_factor = left_Node.shape[2] / down_Node.shape[2]
-                        next = F.interpolate(down_Node, scale_factor=scale_factor, )
-
-                        if self.with_att:
-                            # 2 得到pooling的小的全局特征
-                            global_feat = self.maxpooling(down_Node)
-                            # 3 根据全局特征 去 补充插值结果缺失的特征信息
-                            b1, c1, h1, w1 = next.shape
-                           # print(h1*w1)
-                            next = next.reshape(b1, c1, -1).permute(0, 2, 1)
-                            # 索引缩小 过大的特征图
-                            threshold = 30
-                            if h1>threshold and w1>threshold:
-                                hidx = torch.LongTensor([i for i in range(0,h1,h1//threshold)]).cuda()
-                                widx = torch.LongTensor([i for i in range(0, w1, w1 // threshold)]).cuda()
-                                idx = w1 * hidx.repeat(len(widx),1).t().reshape(-1) + widx.repeat(1,len(hidx)).reshape(-1)
-                                #print(idx)
-                                sparse_Next = next[:, idx, :]
-                                #print(len(idx))
-                            else:
-                                sparse_Next = next[:,:,:]
-
-                            b2, c2, h2, w2 = global_feat.shape
-                            global_feat = global_feat.reshape(b2, c2, -1).permute(0, 2, 1)
-                            if lvl-1==0:
-                                sparse_Next = self.attention256(sparse_Next,global_feat,global_feat)
-                            elif lvl-1==1:
-                                sparse_Next = self.attention512(sparse_Next, global_feat, global_feat)
-                            elif lvl-1==2:
-                                sparse_Next = self.attention1024(sparse_Next, global_feat, global_feat)
-                            #elif lvl-1==3:
-                            #    next = self.attention2048(next, global_feat, global_feat)
-                            if h1 > threshold and w1 > threshold:
-                                next[:,idx,:] = sparse_Next
-                            else:
-                                next = sparse_Next
-                            next = next.permute(0,2,1).reshape(b1,c1,h1,w1)
-
-                        w = min(next.shape[3], left_Node.shape[3])
-                        h = min(next.shape[2], left_Node.shape[2])
-                        left_Node = left_Node[:, :, :h, :w]
-                        left_Node = (left_Node + next[:, :, :h, :w]) / 2.0
-                        # update left node
-                        outs[lvl - 1][nodeidx + 1] = left_Node
-                        outs[lvl].append(res_layer(left_Node))
-
-            #col_outs =[]
-        #row_outs = []
-        #for lvl in range(len(outs)):
-        #    for bran in range(len(outs[lvl])):
-        #        col_outs.append(outs[lvl][0])
-        #        row_outs.append(outs[lvl][-1])
-        finalouts = []
-        for lvl in range(self.num_stages):
-            if lvl not in self.out_indices:
-                continue
-            finalouts.extend(outs[lvl])
-            #n_Node = self.num_stages - lvl
-            #for nodeidx in range(n_Node):
-            #    finalouts.append(outs[lvl][nodeidx])
-        return tuple(finalouts)
+            pyramid.append(F.interpolate(input.clone(), scale_factor=2**(-i), mode='nearest'))
+        x = pyramid[0]
+        x = self.conv1(x)
+        x = self.norm1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+        outs = []
+        for i, layer_name in enumerate(self.res_layers):
+            res_layer = getattr(self, layer_name)
+            x = res_layer(x)
+            if i!=0 and i <= len(pyramid) and i<self.num_stages-3:
+                x2 = pyramid[i]
+                x2 = self.conv1(x2)
+                x2 = self.norm1(x2)
+                x2 = self.relu(x2)
+                x2 = self.maxpool(x2)
+                res_layer = getattr(self, self.res_layers[0])
+                x2 = res_layer(x2)
+                x = x + x2.repeat(1,2**i,1,1)
+            if i in self.out_indices:
+                outs.append(x)
+        return tuple(outs)
 
     def train(self, mode=True):
-        super(IPN_kite, self).train(mode)
+        super(shareResNet, self).train(mode)
         self._freeze_stages()
         if mode and self.norm_eval:
             for m in self.modules():
                 # trick: eval have effect on BatchNorm only
                 if isinstance(m, _BatchNorm):
                     m.eval()
+
 
