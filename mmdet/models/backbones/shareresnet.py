@@ -371,6 +371,7 @@ class shareResNet(nn.Module):
                  conv_cfg=None,
                  norm_cfg=dict(type='BN', requires_grad=True),
                  norm_eval=True,
+                 multiple=False,
                  dcn=None,
                  num_branch=4,
                  stage_with_dcn=(False, False, False, False,False, False, False),
@@ -386,6 +387,7 @@ class shareResNet(nn.Module):
         self.depth = depth
         self.num_branch = num_branch
         self.num_stages = num_stages
+        self.multiple = multiple
         assert num_stages >= 1 and num_stages <= 7
         self.strides = strides
         self.dilations = dilations
@@ -534,7 +536,10 @@ class shareResNet(nn.Module):
                 x2 = self.maxpool(x2)
                 res_layer = getattr(self, self.res_layers[0])
                 x2 = res_layer(x2)
-                x = x + x2.repeat(1,2**i,1,1)
+                if self.multiple:
+                    x = x * x2.repeat(1, 2 ** i, 1, 1)
+                else:
+                    x = x + x2.repeat(1,2**i,1,1)
             if i in self.out_indices:
                 outs.append(x)
         return tuple(outs)

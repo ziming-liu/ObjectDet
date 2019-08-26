@@ -8,6 +8,7 @@ model = dict(
         num_stages=7,
         out_indices=(0, 1, 2, 3, 4, 5, 6),
         frozen_stages=1,
+        multiple=True,
         style='pytorch', with_cp=True),
     neck=dict(
         type='FPN',
@@ -164,7 +165,7 @@ log_config = dict(
 total_epochs = 12
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/faster_rcnn_r50_fpn_1x_shareresnet'
+work_dir = './work_dirs/faster_rcnn_r50_fpn_1x_shareresnet_mul'
 load_from = None
 resume_from = None #'./work_dirs/faster_rcnn_r50_fpn_1x_shareresnet/epoch_5.pth'
 workflow = [('train', 1)]
