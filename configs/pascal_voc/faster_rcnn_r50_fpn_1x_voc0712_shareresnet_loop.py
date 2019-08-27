@@ -3,14 +3,14 @@ model = dict(
     type='FasterRCNN',
     pretrained='modelzoo://resnet50',
     backbone=dict(
-        type='shareResNet',
+        type='shareResNet_loop',
         depth=50,
         num_stages=7,
         out_indices=(0, 1, 2, 3,4,5,6),
         frozen_stages=1,
         style='pytorch',with_cp =True),
     neck=dict(
-        type='FPN',
+        type='FPNlaterial',
         in_channels=[256, 512, 1024, 2048,2048,2048,2048],
         out_channels=256,
         keep=1,
@@ -104,7 +104,7 @@ data_root = 'data/VOCdevkit/'
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 data = dict(
-    imgs_per_gpu=8,
+    imgs_per_gpu=4,
     workers_per_gpu=2,
     train=dict(
         type='RepeatDataset',  # to avoid reloading datasets frequently
@@ -163,7 +163,7 @@ log_config = dict(
 total_epochs = 8  # actual epoch = 4 * 3 = 12
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/faster_rcnn_r50_fpn_1x_voc0712_shareresnet'
-load_from = None
-resume_from = './work_dirs/faster_rcnn_r50_fpn_1x_voc0712_shareresnet/epoch_5.pth'
+work_dir = './work_dirs/faster_rcnn_r50_fpn_1x_voc0712_shareresnet_loopv2'
+load_from = None#'./work_dirs/faster_rcnn_r50_fpn_1x_voc0712_shareresnet/epoch_5.pth'
+resume_from = None#'./work_dirs/faster_rcnn_r50_fpn_1x_voc0712_shareresnet/epoch_5.pth'
 workflow = [('train', 1)]
