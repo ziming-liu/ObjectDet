@@ -504,6 +504,23 @@ class Updown(nn.Module):
                 conv_cfg=conv_cfg,
                 norm_cfg=norm_cfg,
                 inplace=False)
+        self.conv_flat = ConvModule(
+                2048,256,
+                1,
+                conv_cfg=conv_cfg,
+                norm_cfg=norm_cfg,
+                inplace=False)
+        self.out_layers = nn.ModuleList()
+        for i in range(num_stages):
+            out_conv = ConvModule(
+                256,
+                256,
+                3,
+                padding=1,
+                conv_cfg=conv_cfg,
+                norm_cfg=norm_cfg,
+                inplace=False)
+            self.out_layers.append(out_conv)
     @property
     def norm1(self):
         return getattr(self, self.norm1_name)
@@ -579,9 +596,12 @@ class Updown(nn.Module):
         x = self.relu(x)
         x = self.maxpool(x)
         outs = []
+        lowfeats = []
         for i, layer_name in enumerate(self.res_layers):
             res_layer = getattr(self, layer_name)
             x = res_layer(x)
+            if i==0:
+                lowfeats.append(x)
             if i!=0 and i <= len(pyramid) and i<self.num_stages-3:
                 x2 = pyramid[i]
                 x2 = self.conv1(x2)
@@ -591,10 +611,42 @@ class Updown(nn.Module):
                 res_layer = getattr(self, self.res_layers[0])
                 x2 = res_layer(x2)
                 if i==1:
-
-            if i in self.out_indices:
-                outs.append(x)
-        return tuple(outs)
+                    down = self.conv512_256(x)
+                    up = self.conv256_512(x2)
+                    x = x + up
+                    x2 = x2 + down
+                elif i==2:
+                    down = self.conv1024_256(x)
+                    up = self.conv256_1024(x2)
+                    x = x + up
+                    x2 = x2 + down
+                elif i==3:
+                    down = self.conv2048_256(x)
+                    up = self.conv256_2048(x2)
+                    x = x + up
+                    x2 = x2 + down
+                if i in self.out_indices:
+                    lowfeats.append(x2)
+            if i==4:
+                outs.append(self.convs5(x))
+            elif i==5:
+                outs.append(self.convs6(x))
+            elif i==6:
+                outs.append(self.convs7(x))
+        upfeats = []
+        upfeats.append(self.conv_flat(x))
+        for i in range(4):
+            upfeats[i] =  upfeats[i] + lowfeats[4-i-1]
+            if i!=3:
+                upfeats.append(F.interpolate(upfeats[i],scale_factor=2))
+        final = []
+        for i in range(len(upfeats)-1,-1,-1):
+            final.append(upfeats[i])
+        for i in range(len(outs)):
+            final.append(outs[i])
+        for i in range(self.num_stages):
+            final[i] = self.out_layers[i](final[i])
+        return tuple(final)
 
     def train(self, mode=True):
         super(Updown, self).train(mode)
