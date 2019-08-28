@@ -132,7 +132,7 @@ class FPNip(nn.Module):
         # build outputs
         # part 1: from original levels
         outs = [
-            self.fpn_convs[i](laterals[i]) for i in range(used_backbone_levels)
+            self.fpn_convs[i](laterals[i]) for i in range(used_backbone_levels-1,-1,-1)
         ]
         # part 2: add extra levels
         if self.num_outs > len(outs):
