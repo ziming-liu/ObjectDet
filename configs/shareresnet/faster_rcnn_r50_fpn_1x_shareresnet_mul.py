@@ -7,7 +7,7 @@ model = dict(
         depth=50,
         num_stages=7,
         out_indices=(0, 1, 2, 3, 4, 5, 6),
-        frozen_stages=1,
+        frozen_stages=-1,
         multiple=True,
         style='pytorch', with_cp=True),
     neck=dict(
