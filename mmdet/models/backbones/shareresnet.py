@@ -528,7 +528,7 @@ class shareResNet(nn.Module):
         for i, layer_name in enumerate(self.res_layers):
             res_layer = getattr(self, layer_name)
             x = res_layer(x)
-            if i!=0 and i <= len(pyramid) and i<self.num_stages-3:
+            if i!=0 and i <= len(pyramid) and i<self.num_branch:
                 x2 = pyramid[i]
                 x2 = self.conv1(x2)
                 x2 = self.norm1(x2)
