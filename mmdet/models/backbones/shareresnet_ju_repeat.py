@@ -329,7 +329,7 @@ def make_res_layer(block,
 
 
 @BACKBONES.register_module
-class shareResNet_ju_conv(nn.Module):
+class shareResNet_ju_repeat(nn.Module):
     """ResNet backbone.
 
     Args:
@@ -382,7 +382,7 @@ class shareResNet_ju_conv(nn.Module):
                  stage_with_gen_attention=((), (), (), (),(), (), ()),
                  with_cp=False,
                  zero_init_residual=True):
-        super(shareResNet_ju_conv, self).__init__()
+        super(shareResNet_ju_repeat, self).__init__()
         if depth not in self.arch_settings:
             raise KeyError('invalid depth {} for resnet'.format(depth))
         self.depth = depth
@@ -566,7 +566,7 @@ class shareResNet_ju_conv(nn.Module):
         return tuple(outs)
 
     def train(self, mode=True):
-        super(shareResNet_ju_conv, self).train(mode)
+        super(shareResNet_ju_repeat, self).train(mode)
         self._freeze_stages()
         if mode and self.norm_eval:
             for m in self.modules():

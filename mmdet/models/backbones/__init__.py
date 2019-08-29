@@ -19,4 +19,5 @@ from .shareresnet_ju_conv import shareResNet_ju_conv
 from .shareresnet_ju_pool import shareResNet_ju_pool
 from .shareresnet_blue_conv import shareResNet_blue_conv
 from .resnext_shareresnet import shareResNeXt
-__all__ = ['ResNet', 'Kite','Updown', 'shareResNet','shareResNeXt','shareResNet_blue_conv','shareResNet_ju_pool','shareResNet_ju_conv','shareResNet_desh','shareResNet_loop2', 'shareResNet_loop','IPN_share','KiteX', 'SSDVGGkite','IPN_kite','IPN_fusing', 'ResNetS','make_res_layer','IPN_sharev2', 'ResNeXt', 'SSDVGG', 'HRNet']
+from .shareresnet_ju_repeat import shareResNet_ju_repeat
+__all__ = ['ResNet', 'Kite','Updown', 'shareResNet','shareResNet_ju_repeat','shareResNeXt','shareResNet_blue_conv','shareResNet_ju_pool','shareResNet_ju_conv','shareResNet_desh','shareResNet_loop2', 'shareResNet_loop','IPN_share','KiteX', 'SSDVGGkite','IPN_kite','IPN_fusing', 'ResNetS','make_res_layer','IPN_sharev2', 'ResNeXt', 'SSDVGG', 'HRNet']
