@@ -550,8 +550,9 @@ class shareResNet_ju_repeat(nn.Module):
         for i, layer_name in enumerate(self.res_layers):
             res_layer = getattr(self, layer_name)
             x = res_layer(x)
-            if i==0:
-                outs.append(x)
+            #if i==0:
+            #    outs.append(x)
+            out = x
             if i!=0 and i <= len(pyramid) and i<self.num_branch:
                 x2 = pyramid[i]
                 x2 = self.conv1(x2)
@@ -561,8 +562,9 @@ class shareResNet_ju_repeat(nn.Module):
                 res_layer = getattr(self, self.res_layers[0])
                 x2 = res_layer(x2)
                 out = x + x2.repeat(1, 2 ** i, 1, 1)
-                if i in self.out_indices:
-                    outs.append(out)
+            if i in self.out_indices:
+                outs.append(out)
+
         return tuple(outs)
 
     def train(self, mode=True):
