@@ -542,6 +542,7 @@ class shareResNet(nn.Module):
                     x = x + x2.repeat(1,2**i,1,1)
             if i in self.out_indices:
                 outs.append(x)
+        #print(len(outs))
         return tuple(outs)
 
     def train(self, mode=True):

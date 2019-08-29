@@ -8,6 +8,7 @@ model = dict(
         depth=101,
         groups=64,
         base_width=4,
+        num_stages=7,
         num_branch=4,
         strides=(1, 2, 2, 2, 2, 2, 1),
         dilations=(1, 1, 1, 1, 1, 1, 2),
@@ -188,7 +189,7 @@ data_root = 'data/coco/'
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 data = dict(
-    imgs_per_gpu=4,
+    imgs_per_gpu=1,
     workers_per_gpu=4,
     train=dict(
         type=dataset_type,

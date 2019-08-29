@@ -182,9 +182,9 @@ class shareResNeXt(shareResNet):
     """
 
     arch_settings = {
-        50: (Bottleneck, (3, 4, 6, 3)),
-        101: (Bottleneck, (3, 4, 23, 3)),
-        152: (Bottleneck, (3, 8, 36, 3))
+        50: (Bottleneck, (3, 4, 6, 3,2,2,2)),
+        101: (Bottleneck, (3, 4, 23, 3,2,2,2)),
+        152: (Bottleneck, (3, 8, 36, 3,2,2,2))
     }
 
     def __init__(self, groups=1, base_width=4, **kwargs):
@@ -200,6 +200,8 @@ class shareResNeXt(shareResNet):
             dcn = self.dcn if self.stage_with_dcn[i] else None
             gcb = self.gcb if self.stage_with_gcb[i] else None
             planes = 64 * 2**i
+            if i>=4:
+                planes = 64 *2**3
             res_layer = make_res_layer(
                 self.block,
                 self.inplanes,
