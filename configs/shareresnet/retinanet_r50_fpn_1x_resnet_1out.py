@@ -61,7 +61,7 @@ data_root = 'data/coco/'
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 data = dict(
-    imgs_per_gpu=4,
+    imgs_per_gpu=8,
     workers_per_gpu=4,
     train=dict(
         type=dataset_type,
@@ -121,7 +121,7 @@ total_epochs = 12
 device_ids = range(8)
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/retinanet_r50_fpn_1x_shareresnet_1out'
+work_dir = './work_dirs/retinanet_r50_fpn_1x_resnet_1out'
 load_from = None
 resume_from = None
 workflow = [('train', 1)]
