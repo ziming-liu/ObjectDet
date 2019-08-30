@@ -536,10 +536,11 @@ class shareResNet(nn.Module):
                 x2 = self.maxpool(x2)
                 res_layer = getattr(self, self.res_layers[0])
                 x2 = res_layer(x2)
-                if self.multiple:
-                    x = x * x2.repeat(1, 2 ** i, 1, 1)
+                if i>3:
+                    x = x + x2.repeat(1,2**3,1,1)
                 else:
-                    x = x + x2.repeat(1,2**i,1,1)
+                    x = x + x2.repeat(1, 2 ** i, 1, 1)
+
             if i in self.out_indices:
                 outs.append(x)
         #print(len(outs))
