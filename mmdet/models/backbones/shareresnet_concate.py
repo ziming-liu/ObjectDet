@@ -451,20 +451,63 @@ class shareResNet_concate(nn.Module):
 
         self.feat_dim = self.block.expansion * 64 * 2**(
             len(self.stage_blocks) - 1)
-        self.conv_512 = ConvModule(
-            512+256, 512,
+        self.conv_sub_512 =  ConvModule(
+            512, 512,
+            3,
+            padding=1,
+            conv_cfg=conv_cfg,
+            norm_cfg=norm_cfg,
+            inplace=False)
+        self.conv_sub_1024 = ConvModule(
+            1024, 1024,
+            3,
+            padding=1,
+            conv_cfg=conv_cfg,
+            norm_cfg=norm_cfg,
+            inplace=False)
+        self.conv_sub_2048 =  ConvModule(
+            2048, 2048,
+            3,
+            padding=1,
+            conv_cfg=conv_cfg,
+            norm_cfg=norm_cfg,
+            inplace=False)
+        self.conv_main_512 = ConvModule(
+            512, 512,
+            3,
+            padding=1,
+            conv_cfg=conv_cfg,
+            norm_cfg=norm_cfg,
+            inplace=False)
+        self.conv_main_1024 = ConvModule(
+            1024, 1024,
+            3,
+            padding=1,
+            conv_cfg=conv_cfg,
+            norm_cfg=norm_cfg,
+            inplace=False)
+        self.conv_main_2048 = ConvModule(
+            2048, 2048,
+            3,
+            padding=1,
+            conv_cfg=conv_cfg,
+            norm_cfg=norm_cfg,
+            inplace=False)
+
+        self.conv_cat_512 = ConvModule(
+            512*2, 512,
             1,
             conv_cfg=conv_cfg,
             norm_cfg=norm_cfg,
             inplace=False)
-        self.conv_1024 = ConvModule(
-            1024+256, 1024,
+        self.conv_cat_1024 = ConvModule(
+            1024*2, 1024,
             1,
             conv_cfg=conv_cfg,
             norm_cfg=norm_cfg,
             inplace=False)
-        self.conv_2048 = ConvModule(
-            2048+256, 2048,
+        self.conv_cat_2048 = ConvModule(
+            2048*2, 2048,
             1,
             conv_cfg=conv_cfg,
             norm_cfg=norm_cfg,
@@ -557,16 +600,26 @@ class shareResNet_concate(nn.Module):
                 res_layer = getattr(self, self.res_layers[0])
                 x2 = res_layer(x2)
                 if i>3:
-                    x = torch.cat((x, x2),1)
-                    x = self.conv_2048(x)
+                    x = self.conv_main_2048(x)
+                    x2 = self.conv_sub_2048(x2.repeat(1, 2 ** i, 1, 1))
+                    x = torch.cat((x, x2), 1)
+                    x = self.conv_cat_2048(x)
                 else:
-                    x = torch.cat((x, x2),1)
                     if i==1:
-                        x = self.conv_512(x)
+                        x = self.conv_main_512(x)
+                        x2 = self.conv_sub_512(x2.repeat(1, 2 ** i, 1, 1))
+                        x = torch.cat((x, x2), 1)
+                        x = self.conv_cat_512(x)
                     elif i==2:
-                        x = self.conv_1024(x)
+                        x = self.conv_main_1024(x)
+                        x2 = self.conv_sub_1024(x2.repeat(1, 2 ** i, 1, 1))
+                        x = torch.cat((x, x2), 1)
+                        x = self.conv_cat_1024(x)
                     elif i==3:
-                        x = self.conv_2048(x)
+                        x = self.conv_main_2048(x)
+                        x2 = self.conv_sub_2048(x2.repeat(1, 2 ** i, 1, 1))
+                        x = torch.cat((x, x2), 1)
+                        x = self.conv_cat_2048(x)
             if i in self.out_indices:
                 outs.append(x)
         #print(len(outs))

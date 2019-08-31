@@ -330,7 +330,7 @@ def make_res_layer(block,
 
 
 @BACKBONES.register_module
-class shareResNet_product(nn.Module):
+class shareResNet_sumup(nn.Module):
     """ResNet backbone.
 
     Args:
@@ -383,7 +383,7 @@ class shareResNet_product(nn.Module):
                  stage_with_gen_attention=((), (), (), (),(), (), ()),
                  with_cp=False,
                  zero_init_residual=True):
-        super(shareResNet_product, self).__init__()
+        super(shareResNet_sumup, self).__init__()
         if depth not in self.arch_settings:
             raise KeyError('invalid depth {} for resnet'.format(depth))
         self.depth = depth
@@ -494,31 +494,27 @@ class shareResNet_product(nn.Module):
             norm_cfg=norm_cfg,
             inplace=False)
 
-        self.conv_product_512 = ConvModule(
+        self.conv_sum_512 = ConvModule(
             512, 512,
             3,
             padding=1,
             conv_cfg=conv_cfg,
             norm_cfg=norm_cfg,
             inplace=False)
-        self.conv_product_1024 = ConvModule(
+        self.conv_sum_1024 = ConvModule(
             1024, 1024,
             3,
             padding=1,
             conv_cfg=conv_cfg,
             norm_cfg=norm_cfg,
             inplace=False)
-        self.conv_product_2048 = ConvModule(
+        self.conv_sum_2048 = ConvModule(
             2048, 2048,
             3,
             padding=1,
             conv_cfg=conv_cfg,
             norm_cfg=norm_cfg,
             inplace=False)
-        self.layer_norm_512  = nn.LayerNorm(512)
-        self.layer_norm_1024 = nn.LayerNorm(1024)
-        self.layer_norm_2048 = nn.LayerNorm(2048)
-
 
     @property
     def norm1(self):
@@ -609,43 +605,31 @@ class shareResNet_product(nn.Module):
                 if i>3:
                     x = self.conv_main_2048(x)
                     x2 = self.conv_sub_2048(x2.repeat(1, 2 ** i, 1, 1))
-                    attention = self.conv_product_2048(x * x2)
-                    sumup  = (x + attention)
-                    b,c,h,w = sumup.shape
-                    sumup = self.layer_norm_2048(sumup.reshape(b,c,-1).contiguous().permute(0,2,1))
-                    x = sumup.contiguous().permute(0,2,1).reshape(b,c,h,w)
+                    x = x + x2
+                    x = self.conv_sum_2048(x)
                 else:
                     if i==1:
                         x = self.conv_main_512(x)
                         x2 = self.conv_sub_512(x2.repeat(1, 2 ** i, 1, 1))
-                        attention = self.conv_product_512(x * x2)
-                        sumup = (x + attention)
-                        b, c, h, w = sumup.shape
-                        sumup = self.layer_norm_512(sumup.reshape(b, c, -1).contiguous().permute(0, 2, 1))
-                        x = sumup.contiguous().permute(0, 2, 1).reshape(b, c, h, w)
+                        x = x+x2
+                        x = self.conv_sum_512(x)
                     elif i==2:
                         x = self.conv_main_1024(x)
                         x2 = self.conv_sub_1024(x2.repeat(1, 2 ** i, 1, 1))
-                        attention = self.conv_product_1024(x * x2)
-                        sumup = (x + attention)
-                        b, c, h, w = sumup.shape
-                        sumup = self.layer_norm_1024(sumup.reshape(b, c, -1).contiguous().permute(0, 2, 1))
-                        x = sumup.contiguous().permute(0, 2, 1).reshape(b, c, h, w)
+                        x = x + x2
+                        x = self.conv_sum_1024(x)
                     elif i==3:
                         x = self.conv_main_2048(x)
                         x2 = self.conv_sub_2048(x2.repeat(1, 2 ** i, 1, 1))
-                        attention = self.conv_product_2048(x * x2)
-                        sumup = (x + attention)
-                        b, c, h, w = sumup.shape
-                        sumup = self.layer_norm_2048(sumup.reshape(b, c, -1).contiguous().permute(0, 2, 1))
-                        x = sumup.contiguous().permute(0, 2, 1).reshape(b, c, h, w)
+                        x = x + x2
+                        x = self.conv_sum_2048(x)
             if i in self.out_indices:
                 outs.append(x)
         #print(len(outs))
         return tuple(outs)
 
     def train(self, mode=True):
-        super(shareResNet_product, self).train(mode)
+        super(shareResNet_sumup, self).train(mode)
         self._freeze_stages()
         if mode and self.norm_eval:
             for m in self.modules():

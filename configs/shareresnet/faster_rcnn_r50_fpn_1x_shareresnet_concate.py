@@ -39,7 +39,7 @@ model = dict(
         type='SingleRoIExtractor',
         roi_layer=dict(type='RoIAlign', out_size=7, sample_num=2),
         out_channels=256,
-        featmap_strides=[4, 8, 16, 32, 64,128,]),
+        featmap_strides=[4, 8, 16, 32, ]),
     bbox_head=dict(
         type='SharedFCBBoxHead',
         num_fcs=2,
@@ -172,7 +172,7 @@ log_config = dict(
 total_epochs = 12
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/faster_rcnn_r50_fpn_1x_shareresnet'
+work_dir = './work_dirs/faster_rcnn_r50_fpn_1x_shareresnet_concate2'
 load_from = None
 resume_from = None #'./work_dirs/faster_rcnn_r50_fpn_1x_shareresnet/epoch_5.pth'
 workflow = [('train', 1)]
