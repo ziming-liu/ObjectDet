@@ -1,6 +1,5 @@
 import logging
 
-import torch
 import torch.nn as nn
 import torch.utils.checkpoint as cp
 from mmcv.cnn import constant_init, kaiming_init
@@ -8,7 +7,6 @@ from mmcv.runner import load_checkpoint
 from torch.nn.modules.batchnorm import _BatchNorm
 
 from mmdet.models.plugins import GeneralizedAttention
-from mmdet.models.utils import ConvModule
 from mmdet.ops import ContextBlock, DeformConv, ModulatedDeformConv
 from ..registry import BACKBONES
 from ..utils import build_conv_layer, build_norm_layer
@@ -330,7 +328,7 @@ def make_res_layer(block,
 
 
 @BACKBONES.register_module
-class shareResNet_sumup(nn.Module):
+class shareResNet3to1(nn.Module):
     """ResNet backbone.
 
     Args:
@@ -355,11 +353,11 @@ class shareResNet_sumup(nn.Module):
     """
 
     arch_settings = {
-        18: (BasicBlock, (2, 2, 2, 2,1,1,1)),
-        34: (BasicBlock, (3, 4, 6, 3,3,2,2)),
-        50: (Bottleneck, (3, 4, 6, 3,3,2,2)),
-        101: (Bottleneck, (3, 4, 23, 3,3,2,2)),
-        152: (Bottleneck, (3, 8, 36, 3,3,2,2))
+        18: (BasicBlock, (2, 2, 2, 2, 1, 1, 1)),
+        34: (BasicBlock, (3, 4, 6, 3, 3, 2, 2)),
+        50: (Bottleneck, (3, 4, 6, 3, 3, 2, 2)),
+        101: (Bottleneck, (3, 4, 23, 3, 3, 2, 2)),
+        152: (Bottleneck, (3, 8, 36, 3, 3, 2, 2))
     }
 
     def __init__(self,
@@ -368,7 +366,7 @@ class shareResNet_sumup(nn.Module):
                  strides=(1, 2, 2, 2,2 ,2,1),
                  dilations=(1, 1, 1, 1,1,1,2),
                  out_indices=(0, 1, 2, 3,4,5,6),
-                 ipg_indices=(0,1,2,3),
+                 ipg_indices=(0, 1, 2, 3,),
                  style='pytorch',
                  frozen_stages=-1,
                  conv_cfg=None,
@@ -384,7 +382,7 @@ class shareResNet_sumup(nn.Module):
                  stage_with_gen_attention=((), (), (), (),(), (), ()),
                  with_cp=False,
                  zero_init_residual=True):
-        super(shareResNet_sumup, self).__init__()
+        super(shareResNet3to1, self).__init__()
         if depth not in self.arch_settings:
             raise KeyError('invalid depth {} for resnet'.format(depth))
         self.depth = depth
@@ -454,66 +452,6 @@ class shareResNet_sumup(nn.Module):
         self.feat_dim = self.block.expansion * 64 * 2**(
             len(self.stage_blocks) - 1)
 
-        self.ipg_conv1 = make_res_layer(
-            self.block,
-            64,
-            64,
-            1,
-            stride=1,
-            dilation=1,
-            style=self.style,
-            with_cp=with_cp,
-            conv_cfg=conv_cfg,
-            norm_cfg=norm_cfg,
-            dcn=dcn,
-            gcb=gcb,
-            gen_attention=gen_attention,
-            gen_attention_blocks=[])
-        self.ipg_conv2 = make_res_layer(
-            self.block,
-            64,
-            128,
-            1,
-            stride=2,
-            dilation=1,
-            style=self.style,
-            with_cp=with_cp,
-            conv_cfg=conv_cfg,
-            norm_cfg=norm_cfg,
-            dcn=dcn,
-            gcb=gcb,
-            gen_attention=gen_attention,
-            gen_attention_blocks=[])
-        self.ipg_conv3 = make_res_layer(
-            self.block,
-            64,
-            256,
-            1,
-            stride=2,
-            dilation=1,
-            style=self.style,
-            with_cp=with_cp,
-            conv_cfg=conv_cfg,
-            norm_cfg=norm_cfg,
-            dcn=dcn,
-            gcb=gcb,
-            gen_attention=gen_attention,
-            gen_attention_blocks=[])
-        self.ipg_conv4 = make_res_layer(
-            self.block,
-            64,
-            512,
-            1,
-            stride=2,
-            dilation=1,
-            style=self.style,
-            with_cp=with_cp,
-            conv_cfg=conv_cfg,
-            norm_cfg=norm_cfg,
-            dcn=dcn,
-            gcb=gcb,
-            gen_attention=gen_attention,
-            gen_attention_blocks=[])
     @property
     def norm1(self):
         return getattr(self, self.norm1_name)
@@ -582,42 +520,34 @@ class shareResNet_sumup(nn.Module):
         #        parimad.append(input.clone())
         #else:
         for i in range(self.num_branch):
-            pyramid.append(F.interpolate(input.clone(), scale_factor=2**(-i), mode='nearest'))
+            pyramid.append(F.interpolate(input.clone(), scale_factor=2**(-i), mode='bilinear'))
         x = pyramid[0]
         x = self.conv1(x)
         x = self.norm1(x)
         x = self.relu(x)
         x = self.maxpool(x)
         outs = []
+        ipgouts= []
         for i, layer_name in enumerate(self.res_layers):
             res_layer = getattr(self, layer_name)
             x = res_layer(x)
+            x2=x
             if i in self.ipg_indices:
-                if i==0:
-                    x2 = pyramid[1]
-                else:
-                    x2 = pyramid[i]
+                x2 = pyramid[i]
                 x2 = self.conv1(x2)
                 x2 = self.norm1(x2)
                 x2 = self.relu(x2)
-                if i==0:
-                    x2 = self.ipg_conv1(x2)
-                    x = x + x2
-                elif i==1:
-                    x2 = self.ipg_conv2(x2)
-                    x = x + x2
-                elif i==2:
-                    x2 = self.ipg_conv3(x2)
-                    x = x + x2
-                elif i>=3:
-                    x2 = self.ipg_conv4(x2)
-                    x = x + x2
+                x2 = self.maxpool(x2)
+                res_layer = getattr(self, self.res_layers[0])
+                x2 = res_layer(x2)
+            if i in self.out_indices:
+                ipgouts.append(x2)
             if i in self.out_indices:
                 outs.append(x)
-        return tuple(outs)
+        return tuple(outs),tuple(ipgouts)
 
     def train(self, mode=True):
-        super(shareResNet_sumup, self).train(mode)
+        super(shareResNet3to1, self).train(mode)
         self._freeze_stages()
         if mode and self.norm_eval:
             for m in self.modules():

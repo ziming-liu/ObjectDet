@@ -356,10 +356,10 @@ class shareResNet_sumup(nn.Module):
 
     arch_settings = {
         18: (BasicBlock, (2, 2, 2, 2,1,1,1)),
-        34: (BasicBlock, (3, 4, 6, 3,3,2,2)),
-        50: (Bottleneck, (3, 4, 6, 3,3,2,2)),
-        101: (Bottleneck, (3, 4, 23, 3,3,2,2)),
-        152: (Bottleneck, (3, 8, 36, 3,3,2,2))
+        34: (BasicBlock, (3, 4, 6, 3,2,2,2)),
+        50: (Bottleneck, (3, 4, 6, 3,2,2,2)),
+        101: (Bottleneck, (3, 4, 23, 3,2,2,2)),
+        152: (Bottleneck, (3, 8, 36, 3,2,2,2))
     }
 
     def __init__(self,
@@ -368,7 +368,6 @@ class shareResNet_sumup(nn.Module):
                  strides=(1, 2, 2, 2,2 ,2,1),
                  dilations=(1, 1, 1, 1,1,1,2),
                  out_indices=(0, 1, 2, 3,4,5,6),
-                 ipg_indices=(0,1,2,3),
                  style='pytorch',
                  frozen_stages=-1,
                  conv_cfg=None,
@@ -390,7 +389,6 @@ class shareResNet_sumup(nn.Module):
         self.depth = depth
         self.num_branch = num_branch
         self.num_stages = num_stages
-        self.ipg_indices = ipg_indices
         self.multiple = multiple
         assert num_stages >= 1 and num_stages <= 7
         self.strides = strides
@@ -514,6 +512,71 @@ class shareResNet_sumup(nn.Module):
             gcb=gcb,
             gen_attention=gen_attention,
             gen_attention_blocks=[])
+        self.conv_sub_512 =  ConvModule(
+            512, 512,
+            3,
+            padding=1,
+            conv_cfg=conv_cfg,
+            norm_cfg=norm_cfg,
+            inplace=False)
+        self.conv_sub_1024 = ConvModule(
+            1024, 1024,
+            3,
+            padding=1,
+            conv_cfg=conv_cfg,
+            norm_cfg=norm_cfg,
+            inplace=False)
+        self.conv_sub_2048 =  ConvModule(
+            2048, 2048,
+            3,
+            padding=1,
+            conv_cfg=conv_cfg,
+            norm_cfg=norm_cfg,
+            inplace=False)
+        self.conv_main_512 = ConvModule(
+            512, 512,
+            3,
+            padding=1,
+            conv_cfg=conv_cfg,
+            norm_cfg=norm_cfg,
+            inplace=False)
+        self.conv_main_1024 = ConvModule(
+            1024, 1024,
+            3,
+            padding=1,
+            conv_cfg=conv_cfg,
+            norm_cfg=norm_cfg,
+            inplace=False)
+        self.conv_main_2048 = ConvModule(
+            2048, 2048,
+            3,
+            padding=1,
+            conv_cfg=conv_cfg,
+            norm_cfg=norm_cfg,
+            inplace=False)
+
+        self.conv_sum_512 = ConvModule(
+            512, 512,
+            3,
+            padding=1,
+            conv_cfg=conv_cfg,
+            norm_cfg=norm_cfg,
+            inplace=False)
+        self.conv_sum_1024 = ConvModule(
+            1024, 1024,
+            3,
+            padding=1,
+            conv_cfg=conv_cfg,
+            norm_cfg=norm_cfg,
+            inplace=False)
+        self.conv_sum_2048 = ConvModule(
+            2048, 2048,
+            3,
+            padding=1,
+            conv_cfg=conv_cfg,
+            norm_cfg=norm_cfg,
+            inplace=False)
+
     @property
     def norm1(self):
         return getattr(self, self.norm1_name)
@@ -592,28 +655,38 @@ class shareResNet_sumup(nn.Module):
         for i, layer_name in enumerate(self.res_layers):
             res_layer = getattr(self, layer_name)
             x = res_layer(x)
-            if i in self.ipg_indices:
-                if i==0:
-                    x2 = pyramid[1]
-                else:
-                    x2 = pyramid[i]
+            if i!=0 and i <= len(pyramid) and i<self.num_branch:
+                x2 = pyramid[i]
                 x2 = self.conv1(x2)
                 x2 = self.norm1(x2)
                 x2 = self.relu(x2)
-                if i==0:
-                    x2 = self.ipg_conv1(x2)
+                x2 = self.maxpool(x2)
+                res_layer = getattr(self, self.res_layers[0])
+                x2 = res_layer(x2)
+                if i>3:
+                    x = self.conv_main_2048(x)
+                    x2 = self.conv_sub_2048(x2.repeat(1, 2 ** i, 1, 1))
                     x = x + x2
-                elif i==1:
-                    x2 = self.ipg_conv2(x2)
-                    x = x + x2
-                elif i==2:
-                    x2 = self.ipg_conv3(x2)
-                    x = x + x2
-                elif i>=3:
-                    x2 = self.ipg_conv4(x2)
-                    x = x + x2
+                    x = self.conv_sum_2048(x)
+                else:
+                    if i==1:
+                        x = self.conv_main_512(x)
+                        x2 = self.conv_sub_512(x2.repeat(1, 2 ** i, 1, 1))
+                        x = x+x2
+                        x = self.conv_sum_512(x)
+                    elif i==2:
+                        x = self.conv_main_1024(x)
+                        x2 = self.conv_sub_1024(x2.repeat(1, 2 ** i, 1, 1))
+                        x = x + x2
+                        x = self.conv_sum_1024(x)
+                    elif i==3:
+                        x = self.conv_main_2048(x)
+                        x2 = self.conv_sub_2048(x2.repeat(1, 2 ** i, 1, 1))
+                        x = x + x2
+                        x = self.conv_sum_2048(x)
             if i in self.out_indices:
                 outs.append(x)
+        #print(len(outs))
         return tuple(outs)
 
     def train(self, mode=True):

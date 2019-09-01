@@ -11,4 +11,5 @@ from .kitefpn_align import kiteFPNalign
 from .fam import FAM
 from .fpn_laterial import FPNlaterial
 from .fpn_ip import FPNip
-__all__ = ['FPN', 'BFP','FAM','FPNip', 'flatFPN','FPNlaterial','FPNalign','kiteFPNalign','pinkFPN','fusingFPN', 'HRFPN','customFPN','kiteFPN']
+from .fpn_3to1 import FPN3to1
+__all__ = ['FPN', 'BFP','FAM','FPN3to1','FPNip', 'flatFPN','FPNlaterial','FPNalign','kiteFPNalign','pinkFPN','fusingFPN', 'HRFPN','customFPN','kiteFPN']

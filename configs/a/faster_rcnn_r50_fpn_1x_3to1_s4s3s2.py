@@ -3,33 +3,34 @@ model = dict(
     type='FasterRCNN',
     pretrained='modelzoo://resnet50',
     backbone=dict(
-        type='shareResNet',
+        type='shareResNet3to1',
         depth=50,
-        num_stages=7,
-        num_branch = 4,
-        strides=(1, 2, 2, 2,2 ,2,1),
-        dilations=(1, 1, 1, 1,1,1,2),
-        out_indices=(0, 1, 2, 3,4,5,6),
-        stage_with_dcn=(False, False, False, False,False, False, False),
+        num_stages=4,
+        num_branch=4,
+        strides=(1, 2, 2, 2, ),
+        dilations=(1, 1, 1, 1, ),
+        out_indices=(0, 1, 2, 3, ),
+        ipg_indices=(1,2,3,),
+        stage_with_dcn=(False, False, False, False, ),
         gcb=None,
-        stage_with_gcb=(False, False, False, False,False, False, False),
+        stage_with_gcb=(False, False, False, False, ),
         gen_attention=None,
-        stage_with_gen_attention=((), (), (), (),(), (), ()),
+        stage_with_gen_attention=((), (), (), (), ),
         frozen_stages=1,
         style='pytorch', with_cp=True),
     neck=dict(
-        type='FPN',
-        in_channels=[256, 512, 1024, 2048, 2048, 2048, 2048],
+        type='FPN3to1',
+        in_channels=[256, 512, 1024, 2048],
         out_channels=256,
-        keep=1,
-        num_outs=7),
+        ipg_indices=(1,2,3,),
+        num_outs=5),
     rpn_head=dict(
         type='RPNHead',
         in_channels=256,
         feat_channels=256,
         anchor_scales=[8],
         anchor_ratios=[0.5, 1.0, 2.0],
-        anchor_strides=[4, 8, 16, 32, 64,128,128],
+        anchor_strides=[4, 8, 16, 32, 64],
         target_means=[.0, .0, .0, .0],
         target_stds=[1.0, 1.0, 1.0, 1.0],
         loss_cls=dict(
@@ -39,7 +40,7 @@ model = dict(
         type='SingleRoIExtractor',
         roi_layer=dict(type='RoIAlign', out_size=7, sample_num=2),
         out_channels=256,
-        featmap_strides=[4, 8, 16, 32, 64,128,]),
+        featmap_strides=[4, 8, 16, 32]),
     bbox_head=dict(
         type='SharedFCBBoxHead',
         num_fcs=2,
@@ -115,7 +116,7 @@ img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 data = dict(
     imgs_per_gpu=4,
-    workers_per_gpu=4,
+    workers_per_gpu=2,
     train=dict(
         type=dataset_type,
         ann_file=data_root + 'annotations/instances_train2017.json',
@@ -140,8 +141,10 @@ data = dict(
         with_label=True),
     test=dict(
         type=dataset_type,
-        ann_file=data_root + 'annotations/image_info_test-dev2017.json',
-        img_prefix=data_root + 'test2017/',
+        #ann_file=data_root + 'annotations/image_info_test-dev2017.json',
+        #img_prefix=data_root + 'test2017/',
+        ann_file=data_root + 'annotations/instances_val2017.json',
+        img_prefix=data_root + 'val2017/',
         img_scale=(1333, 800),
         img_norm_cfg=img_norm_cfg,
         size_divisor=32*4,
@@ -150,12 +153,12 @@ data = dict(
         with_label=False,
         test_mode=True))
 # optimizer
-optimizer = dict(type='SGD', lr=0.02, momentum=0.9, weight_decay=0.0001)
+optimizer = dict(type='SGD', lr=0.001, momentum=0.9, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
 # learning policy
 lr_config = dict(
     policy='step',
-    warmup='linear',
+    warmup=None,
     warmup_iters=500,
     warmup_ratio=1.0 / 3,
     step=[7,11])
@@ -165,14 +168,14 @@ log_config = dict(
     interval=10,
     hooks=[
         dict(type='TextLoggerHook'),
-        # dict(type='TensorboardLoggerHook')
+       # dict(type='TensorboardLoggerHook')
     ])
 # yapf:enable
 # runtime settings
-total_epochs = 12
+total_epochs = 6
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/faster_rcnn_r50_fpn_1x_shareresnet'
-load_from = None
-resume_from = './work_dirs/faster_rcnn_r50_fpn_1x_shareresnet/epoch_5.pth'
+work_dir = './work_dirs/faster_rcnn_r50_fpn_1x_3to1_s4s3s2'
+load_from = './work_dirs/faster_rcnn_r50_fpn_1x/epoch_12.pth'
+resume_from = None
 workflow = [('train', 1)]
