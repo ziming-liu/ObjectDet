@@ -3,12 +3,21 @@ model = dict(
     type='FasterRCNN',
     pretrained='modelzoo://resnet50',
     backbone=dict(
-        type='ResNet',
+        type='shareResNet_sumup',
         depth=50,
         num_stages=4,
-        out_indices=(0, 1, 2, 3),
+        num_branch=4,
+        strides=(1, 2, 2, 2, ),
+        dilations=(1, 1, 1, 1, ),
+        out_indices=(0,1,2,3 ),
+        ipg_indices=(1,),
+        stage_with_dcn=(False, False, False, False, ),
+        gcb=None,
+        stage_with_gcb=(False, False, False, False, ),
+        gen_attention=None,
+        stage_with_gen_attention=((), (), (), (), ),
         frozen_stages=1,
-        style='pytorch',with_cp=True),
+        style='pytorch', with_cp=True),
     neck=dict(
         type='FPN',
         in_channels=[256, 512, 1024, 2048],
@@ -43,7 +52,9 @@ model = dict(
         reg_class_agnostic=False,
         loss_cls=dict(
             type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0),
-        loss_bbox=dict(type='SmoothL1Loss', beta=1.0, loss_weight=1.0)))
+        loss_bbox=dict(type='SmoothL1Loss', beta=1.0, loss_weight=1.0),
+        #loss_adv=dict(type='AdversarialLoss', ), with_adv=True,
+    ))
 # model training and testing settings
 train_cfg = dict(
     rpn=dict(
@@ -145,24 +156,29 @@ data = dict(
         with_label=False,
         test_mode=True))
 # optimizer
-optimizer = dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0001)
+optimizer = dict(type='SGD', lr=0.001, momentum=0.9, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
 # learning policy
-lr_config = dict(policy='step', step=[3])  # actual epoch = 3 * 3 = 9
+lr_config = dict(
+    policy='step',
+    warmup=None,
+    warmup_iters=500,
+    warmup_ratio=1.0 / 3,
+    step=[7,11])
 checkpoint_config = dict(interval=1)
 # yapf:disable
 log_config = dict(
-    interval=50,
+    interval=10,
     hooks=[
         dict(type='TextLoggerHook'),
-        # dict(type='TensorboardLoggerHook')
+       # dict(type='TensorboardLoggerHook')
     ])
 # yapf:enable
 # runtime settings
-total_epochs = 8  # actual epoch = 4 * 3 = 12
+total_epochs = 5
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/faster_rcnn_r50_fpn_1x_voc0712'
+work_dir = './work_dirs/faster_rcnn_r50_fpn_1x_voc_sum_s2'
 load_from = './work_dirs/faster_rcnn_r50_fpn_1x_voc0712/epoch_12.pth'
 resume_from = None
 workflow = [('train', 1)]

@@ -8,7 +8,7 @@ from ..utils import build_conv_layer, build_norm_layer
 from .resnet import Bottleneck as _Bottleneck
 from .resnet import ResNet
 from .shareresnet import shareResNet
-
+from .shareresnet_sumup import shareResNet_sumup
 class Bottleneck(_Bottleneck):
 
     def __init__(self, inplanes, planes, groups=1, base_width=4, **kwargs):
@@ -155,7 +155,7 @@ def make_res_layer(block,
 
 
 @BACKBONES.register_module
-class shareResNeXt(shareResNet):
+class shareResNeXt(shareResNet_sumup):
     """ResNeXt backbone.
 
     Args:

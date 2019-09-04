@@ -127,7 +127,7 @@ data = dict(
         type=dataset_type,
         ann_file=data_root + 'VOC2007/ImageSets/Main/test.txt',
         img_prefix=data_root + 'VOC2007/',
-        img_scale=[(1000, 600)],
+        img_scale=[(600,400),(1000, 600),(1333,800),(1500,1000)],
         img_norm_cfg=img_norm_cfg,
         size_divisor=32*4,
         flip_ratio=0,
@@ -164,6 +164,6 @@ total_epochs = 8  # actual epoch = 4 * 3 = 12
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = './work_dirs/faster_rcnn_r50_fpn_1x_voc0712_shareresnet'
-load_from = None
-resume_from = './work_dirs/faster_rcnn_r50_fpn_1x_voc0712_shareresnet/epoch_5.pth'
+load_from = './work_dirs/faster_rcnn_r50_fpn_1x_voc0712_shareresnet/epoch_7.pth'
+resume_from = None#'./work_dirs/faster_rcnn_r50_fpn_1x_voc0712_shareresnet/epoch_5.pth'
 workflow = [('train', 1)]

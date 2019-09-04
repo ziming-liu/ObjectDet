@@ -186,3 +186,18 @@ class SharedFCBBoxHead(ConvFCBBoxHead):
             fc_out_channels=fc_out_channels,
             *args,
             **kwargs)
+@HEADS.register_module
+class vocSharedFCBBoxHead(ConvFCBBoxHead):
+
+    def __init__(self, num_fcs=2, fc_out_channels=1024, *args, **kwargs):
+        assert num_fcs >= 1
+        super(vocSharedFCBBoxHead, self).__init__(
+            num_shared_convs=0,
+            num_shared_fcs=num_fcs,
+            num_cls_convs=0,
+            num_cls_fcs=0,
+            num_reg_convs=0,
+            num_reg_fcs=0,
+            fc_out_channels=fc_out_channels,
+            *args,
+            **kwargs)

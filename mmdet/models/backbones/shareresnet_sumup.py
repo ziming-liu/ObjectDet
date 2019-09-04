@@ -514,6 +514,10 @@ class shareResNet_sumup(nn.Module):
             gcb=gcb,
             gen_attention=gen_attention,
             gen_attention_blocks=[])
+        self.ipg_bn1= nn.BatchNorm2d(256)
+        self.ipg_bn2 = nn.BatchNorm2d(512)
+        self.ipg_bn3 = nn.BatchNorm2d(1024)
+        self.ipg_bn4 = nn.BatchNorm2d(2048)
     @property
     def norm1(self):
         return getattr(self, self.norm1_name)
