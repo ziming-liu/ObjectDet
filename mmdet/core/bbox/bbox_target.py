@@ -1,7 +1,7 @@
 import torch
 
-from .transforms import bbox2delta
 from ..utils import multi_apply
+from .transforms import bbox2delta
 
 
 def bbox_target(pos_bboxes_list,
@@ -13,7 +13,7 @@ def bbox_target(pos_bboxes_list,
                 target_means=[.0, .0, .0, .0],
                 target_stds=[1.0, 1.0, 1.0, 1.0],
                 concat=True):
-    labels, label_weights, size_labels,size_labels_weights, bbox_targets, bbox_weights = multi_apply(
+    labels, label_weights, bbox_targets, bbox_weights ,big_label_weights,small_label_weights= multi_apply(
         bbox_target_single,
         pos_bboxes_list,
         neg_bboxes_list,
@@ -27,11 +27,11 @@ def bbox_target(pos_bboxes_list,
     if concat:
         labels = torch.cat(labels, 0)
         label_weights = torch.cat(label_weights, 0)
-        size_labels = torch.cat(size_labels, 0)
-        size_labels_weights = torch.cat(size_labels_weights, 0)
         bbox_targets = torch.cat(bbox_targets, 0)
         bbox_weights = torch.cat(bbox_weights, 0)
-    return labels, label_weights, size_labels,size_labels_weights, bbox_targets, bbox_weights
+        big_label_weights =torch.cat(big_label_weights,0)
+        small_label_weights = torch.cat(small_label_weights,0)
+    return labels, label_weights, bbox_targets, bbox_weights,#big_label_weights,small_label_weights
 
 
 def bbox_target_single(pos_bboxes,
@@ -47,36 +47,38 @@ def bbox_target_single(pos_bboxes,
     num_samples = num_pos + num_neg
     labels = pos_bboxes.new_zeros(num_samples, dtype=torch.long)
     label_weights = pos_bboxes.new_zeros(num_samples)
-    size_labels = pos_bboxes.new_zeros(num_samples, dtype=torch.long)
-    size_labels_weights = pos_bboxes.new_zeros(num_samples)
+    bigidx = pos_bboxes.new_zeros(num_pos)
+    smallidx = pos_bboxes.new_zeros(num_pos)
+    big_label_weights = pos_bboxes.new_zeros(num_samples)
+    small_label_weights = pos_bboxes.new_zeros(num_samples)
     bbox_targets = pos_bboxes.new_zeros(num_samples, 4)
     bbox_weights = pos_bboxes.new_zeros(num_samples, 4)
     if num_pos > 0:
         labels[:num_pos] = pos_gt_labels
         pos_weight = 1.0 if cfg.pos_weight <= 0 else cfg.pos_weight
         label_weights[:num_pos] = pos_weight
+        area = (pos_gt_bboxes[:,3]-pos_gt_bboxes[:,1])*(pos_gt_bboxes[:,2]-pos_gt_bboxes[:,0])
+        bigidx[area>64*64*2] = 1.0
+        big_label_weights[:num_pos] = bigidx
+        smallidx[area<=64*64*2] = 1.0
+        small_label_weights[:num_pos] = pos_weight
         pos_bbox_targets = bbox2delta(pos_bboxes, pos_gt_bboxes, target_means,
                                       target_stds)
         bbox_targets[:num_pos, :] = pos_bbox_targets
         bbox_weights[:num_pos, :] = 1
-        #print("gtboxszie {}".format(pos_gt_bboxes))
-        area = (pos_gt_bboxes[:,3] - pos_gt_bboxes[:,1])  * (pos_gt_bboxes[:,2]-pos_gt_bboxes[:,0])
-        #print("area {}".format(area))
-        gt_size = torch.where(area<64*64*2,torch.full_like(area,0),torch.full_like(area,1))
-        size_labels[:num_pos] = gt_size
-        #print("gt size {}".format(gt_size))
-        size_labels_weights[:num_pos] = pos_weight
     if num_neg > 0:
         label_weights[-num_neg:] = 1.0
+        big_label_weights[-num_neg:] = 1.0
+        small_label_weights[-num_neg:] = 1.0
 
-    return labels, label_weights, size_labels,size_labels_weights, bbox_targets, bbox_weights
+    return labels, label_weights, bbox_targets, bbox_weights,big_label_weights,small_label_weights
 
 
 def expand_target(bbox_targets, bbox_weights, labels, num_classes):
-    bbox_targets_expand = bbox_targets.new_zeros((bbox_targets.size(0),
-                                                  4 * num_classes))
-    bbox_weights_expand = bbox_weights.new_zeros((bbox_weights.size(0),
-                                                  4 * num_classes))
+    bbox_targets_expand = bbox_targets.new_zeros(
+        (bbox_targets.size(0), 4 * num_classes))
+    bbox_weights_expand = bbox_weights.new_zeros(
+        (bbox_weights.size(0), 4 * num_classes))
     for i in torch.nonzero(labels > 0).squeeze(-1):
         start, end = labels[i] * 4, (labels[i] + 1) * 4
         bbox_targets_expand[i, start:end] = bbox_targets[i, :]

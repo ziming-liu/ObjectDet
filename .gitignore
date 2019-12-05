@@ -106,6 +106,8 @@ venv.bak/
 # cython generated cpp
 mmdet/ops/nms/src/soft_nms_cpu.cpp
 mmdet/version.py
+tools/train.py
+tools/test.py
 #data/coco
 .vscode
 .idea
@@ -115,3 +117,6 @@ mmdet/version.py
 *.pkl.json
 *.log.json
 #work_dirs/
+work_dirs/
+data/
+ckp/

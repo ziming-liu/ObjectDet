@@ -19,6 +19,8 @@ class FPN(nn.Module):
                  add_extra_convs=False,
                  extra_convs_on_inputs=True,
                  relu_before_extra_convs=False,
+                 interval=2,
+                 keep=0,
                  conv_cfg=None,
                  norm_cfg=None,
                  activation=None):
@@ -28,10 +30,11 @@ class FPN(nn.Module):
         self.out_channels = out_channels
         self.num_ins = len(in_channels)
         self.num_outs = num_outs
+        self.keep = keep
         self.activation = activation
         self.relu_before_extra_convs = relu_before_extra_convs
         self.fp16_enabled = False
-
+        self.interval = interval
         if end_level == -1:
             self.backbone_end_level = self.num_ins
             assert num_outs >= self.num_ins - start_level
@@ -99,7 +102,6 @@ class FPN(nn.Module):
     @auto_fp16()
     def forward(self, inputs):
         assert len(inputs) == len(self.in_channels)
-
         # build laterals
         laterals = [
             lateral_conv(inputs[i + self.start_level])
@@ -108,9 +110,15 @@ class FPN(nn.Module):
 
         # build top-down path
         used_backbone_levels = len(laterals)
-        for i in range(used_backbone_levels - 1, 0, -1):
-            laterals[i - 1] += F.interpolate(
-                laterals[i], scale_factor=2, mode='nearest')
+        for i in range(len(laterals) - 1, 0, -1):
+            #print(laterals[i].shape)
+           # print(F.interpolate(
+            #    laterals[i], scale_factor=1.36, mode='nearest').shape)
+            if i>len(laterals) - 1-self.keep:
+                laterals[i-1] += laterals[i]
+            else:
+                laterals[i - 1] += F.interpolate(
+                    laterals[i], scale_factor=self.interval, mode='nearest')
 
         # build outputs
         # part 1: from original levels
@@ -136,4 +144,5 @@ class FPN(nn.Module):
                         outs.append(self.fpn_convs[i](F.relu(outs[-1])))
                     else:
                         outs.append(self.fpn_convs[i](outs[-1]))
+
         return tuple(outs)

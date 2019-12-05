@@ -1,8 +1,8 @@
 import torch
 
-from .two_stage import TwoStageDetector
-from ..registry import DETECTORS
 from mmdet.core import bbox2roi, build_assigner, build_sampler
+from ..registry import DETECTORS
+from .two_stage import TwoStageDetector
 
 
 @DETECTORS.register_module
@@ -11,6 +11,30 @@ class DoubleHeadRCNN(TwoStageDetector):
     def __init__(self, reg_roi_scale_factor, **kwargs):
         super().__init__(**kwargs)
         self.reg_roi_scale_factor = reg_roi_scale_factor
+
+    def forward_dummy(self, img):
+        outs = ()
+        # backbone
+        x = self.extract_feat(img)
+        # rpn
+        if self.with_rpn:
+            rpn_outs = self.rpn_head(x)
+            outs = outs + (rpn_outs, )
+        proposals = torch.randn(1000, 4).cuda()
+        # bbox head
+        rois = bbox2roi([proposals])
+        bbox_cls_feats = self.bbox_roi_extractor(
+            x[:self.bbox_roi_extractor.num_inputs], rois)
+        bbox_reg_feats = self.bbox_roi_extractor(
+            x[:self.bbox_roi_extractor.num_inputs],
+            rois,
+            roi_scale_factor=self.reg_roi_scale_factor)
+        if self.with_shared_head:
+            bbox_cls_feats = self.shared_head(bbox_cls_feats)
+            bbox_reg_feats = self.shared_head(bbox_reg_feats)
+        cls_score, bbox_pred = self.bbox_head(bbox_cls_feats, bbox_reg_feats)
+        outs += (cls_score, bbox_pred)
+        return outs
 
     def forward_train(self,
                       img,

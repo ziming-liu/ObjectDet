@@ -8,7 +8,7 @@ model = dict(
         num_stages=4,
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
-        style='pytorch'),
+        style='pytorch',with_cp=True),
     neck=dict(
         type='FPN',
         in_channels=[256, 512, 1024, 2048],
@@ -43,7 +43,9 @@ model = dict(
         reg_class_agnostic=False,
         loss_cls=dict(
             type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0),
-        loss_bbox=dict(type='SmoothL1Loss', beta=1.0, loss_weight=1.0)))
+        loss_bbox=dict(type='SmoothL1Loss', beta=1.0, loss_weight=1.0),
+        #loss_adv=dict(type='AdversarialLoss', ), with_adv=True,
+    ))
 # model training and testing settings
 train_cfg = dict(
     rpn=dict(
@@ -103,15 +105,15 @@ data_root = 'data/coco/'
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 data = dict(
-    imgs_per_gpu=2,
+    imgs_per_gpu=1,
     workers_per_gpu=2,
     train=dict(
         type=dataset_type,
-        ann_file=data_root + 'annotations/instances_val2017.json',
-        img_prefix=data_root + 'val2017/',
+        ann_file=data_root + 'annotations/instances_train2017.json',
+        img_prefix=data_root + 'train2017/',
         img_scale=(1333, 800),
         img_norm_cfg=img_norm_cfg,
-        size_divisor=32,
+        size_divisor=32*4,
         flip_ratio=0.5,
         with_mask=False,
         with_crowd=True,
@@ -122,18 +124,20 @@ data = dict(
         img_prefix=data_root + 'val2017/',
         img_scale=(1333, 800),
         img_norm_cfg=img_norm_cfg,
-        size_divisor=32,
+        size_divisor=32*4,
         flip_ratio=0,
         with_mask=False,
         with_crowd=True,
         with_label=True),
     test=dict(
         type=dataset_type,
+        #ann_file=data_root + 'annotations/image_info_test-dev2017.json',
+        #img_prefix=data_root + 'test2017/',
         ann_file=data_root + 'annotations/instances_val2017.json',
         img_prefix=data_root + 'val2017/',
         img_scale=(1333, 800),
         img_norm_cfg=img_norm_cfg,
-        size_divisor=32,
+        size_divisor=32*4,
         flip_ratio=0,
         with_mask=False,
         with_label=False,
@@ -147,11 +151,11 @@ lr_config = dict(
     warmup='linear',
     warmup_iters=500,
     warmup_ratio=1.0 / 3,
-    step=[8, 11])
+    step=[7,11])
 checkpoint_config = dict(interval=1)
 # yapf:disable
 log_config = dict(
-    interval=50,
+    interval=10,
     hooks=[
         dict(type='TextLoggerHook'),
         # dict(type='TensorboardLoggerHook')
@@ -163,5 +167,5 @@ dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = './work_dirs/faster_rcnn_r50_fpn_1x'
 load_from = None
-resume_from = None
+resume_from = None#'./work_dirs/faster_rcnn_r50_fpn_1x/epoch_12.pth'
 workflow = [('train', 1)]

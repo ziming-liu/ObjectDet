@@ -5,8 +5,8 @@ from mmcv.cnn import normal_init
 
 from mmdet.core import delta2bbox
 from mmdet.ops import nms
-from .anchor_head import AnchorHead
 from ..registry import HEADS
+from .anchor_head import AnchorHead
 
 
 @HEADS.register_module
@@ -21,26 +21,21 @@ class RPNHead(AnchorHead):
         self.rpn_cls = nn.Conv2d(self.feat_channels,
                                  self.num_anchors * self.cls_out_channels, 1)
         self.rpn_reg = nn.Conv2d(self.feat_channels, self.num_anchors * 4, 1)
-        self.rpn_adv = nn.Conv2d(self.feat_channels,
-                                 self.num_anchors * 1, 1)
+
     def init_weights(self):
         normal_init(self.rpn_conv, std=0.01)
         normal_init(self.rpn_cls, std=0.01)
         normal_init(self.rpn_reg, std=0.01)
-        normal_init(self.rpn_adv, std=0.01)
-
 
     def forward_single(self, x):
         x = self.rpn_conv(x)
         x = F.relu(x, inplace=True)
         rpn_cls_score = self.rpn_cls(x)
         rpn_bbox_pred = self.rpn_reg(x)
-        rpn_adv_score = self.rpn_adv(x)
-        return rpn_cls_score, rpn_adv_score, rpn_bbox_pred
+        return rpn_cls_score, rpn_bbox_pred
 
     def loss(self,
              cls_scores,
-             adv_scores,
              bbox_preds,
              gt_bboxes,
              img_metas,
@@ -48,7 +43,6 @@ class RPNHead(AnchorHead):
              gt_bboxes_ignore=None):
         losses = super(RPNHead, self).loss(
             cls_scores,
-            adv_scores,
             bbox_preds,
             gt_bboxes,
             None,

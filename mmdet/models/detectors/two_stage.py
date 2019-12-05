@@ -1,11 +1,11 @@
 import torch
 import torch.nn as nn
 
-from .base import BaseDetector
-from .test_mixins import RPNTestMixin, BBoxTestMixin, MaskTestMixin
+from mmdet.core import bbox2result, bbox2roi, build_assigner, build_sampler
 from .. import builder
 from ..registry import DETECTORS
-from mmdet.core import bbox2roi, bbox2result, build_assigner, build_sampler
+from .base import BaseDetector
+from .test_mixins import BBoxTestMixin, MaskTestMixin, RPNTestMixin
 
 
 @DETECTORS.register_module
@@ -87,6 +87,35 @@ class TwoStageDetector(BaseDetector, RPNTestMixin, BBoxTestMixin,
             x = self.neck(x)
         return x
 
+    def forward_dummy(self, img):
+        outs = ()
+        # backbone
+        x = self.extract_feat(img)
+        # rpn
+        if self.with_rpn:
+            rpn_outs = self.rpn_head(x)
+            outs = outs + (rpn_outs, )
+        proposals = torch.randn(1000, 4).cuda()
+        # bbox head
+        rois = bbox2roi([proposals])
+        if self.with_bbox:
+            bbox_feats = self.bbox_roi_extractor(
+                x[:self.bbox_roi_extractor.num_inputs], rois)
+            if self.with_shared_head:
+                bbox_feats = self.shared_head(bbox_feats)
+            cls_score, bbox_pred = self.bbox_head(bbox_feats)
+            outs = outs + (cls_score, bbox_pred)
+        # mask head
+        if self.with_mask:
+            mask_rois = rois[:100]
+            mask_feats = self.mask_roi_extractor(
+                x[:self.mask_roi_extractor.num_inputs], mask_rois)
+            if self.with_shared_head:
+                mask_feats = self.shared_head(mask_feats)
+            mask_pred = self.mask_head(mask_feats)
+            outs = outs + (mask_pred, )
+        return outs
+
     def forward_train(self,
                       img,
                       img_meta,
@@ -111,7 +140,6 @@ class TwoStageDetector(BaseDetector, RPNTestMixin, BBoxTestMixin,
             proposal_cfg = self.train_cfg.get('rpn_proposal',
                                               self.test_cfg.rpn)
             proposal_inputs = rpn_outs + (img_meta, proposal_cfg)
-            #print("scale factor {}".format(img_meta[0]['scale_factor']))
             proposal_list = self.rpn_head.get_bboxes(*proposal_inputs)
         else:
             proposal_list = proposals
@@ -126,9 +154,10 @@ class TwoStageDetector(BaseDetector, RPNTestMixin, BBoxTestMixin,
                 gt_bboxes_ignore = [None for _ in range(num_imgs)]
             sampling_results = []
             for i in range(num_imgs):
-                assign_result = bbox_assigner.assign(
-                    proposal_list[i], gt_bboxes[i], gt_bboxes_ignore[i],
-                    gt_labels[i])
+                assign_result = bbox_assigner.assign(proposal_list[i],
+                                                     gt_bboxes[i],
+                                                     gt_bboxes_ignore[i],
+                                                     gt_labels[i])
                 sampling_result = bbox_sampler.sample(
                     assign_result,
                     proposal_list[i],
@@ -145,22 +174,12 @@ class TwoStageDetector(BaseDetector, RPNTestMixin, BBoxTestMixin,
                 x[:self.bbox_roi_extractor.num_inputs], rois)
             if self.with_shared_head:
                 bbox_feats = self.shared_head(bbox_feats)
-            cls_score,adv_score, bbox_pred = self.bbox_head(bbox_feats)
+            cls_score, bbox_pred = self.bbox_head(bbox_feats)
 
-            bbox_targets = self.bbox_head.get_target(
-                sampling_results, gt_bboxes, gt_labels, self.train_cfg.rcnn,)
-            """ 
-            # big/small
-            num_imgs = gt_bboxes.size()[0]
-            size_labels = []
-            for ii in range(num_imgs):
-                size_label = torch.ones(gt_bboxes[ii].size(0))
-                area = (gt_bboxes[ii][:, 3] - gt_bboxes[ii][:, 1]) * (gt_bboxes[ii][ :, 2] - gt_bboxes[ii][:, 0]).view(-1)
-                size_label = torch.where(area<64*64,torch.full_like(area,0),size_label)
-                print("size label {}".format(size_label))
-                size_labels.append(size_label)
-            """
-            loss_bbox = self.bbox_head.loss(cls_score,adv_score, bbox_pred,
+            bbox_targets = self.bbox_head.get_target(sampling_results,
+                                                     gt_bboxes, gt_labels,
+                                                     self.train_cfg.rcnn)
+            loss_bbox = self.bbox_head.loss(cls_score,bbox_pred,
                                             *bbox_targets)
             losses.update(loss_bbox)
 
@@ -191,8 +210,9 @@ class TwoStageDetector(BaseDetector, RPNTestMixin, BBoxTestMixin,
                 mask_feats = bbox_feats[pos_inds]
             mask_pred = self.mask_head(mask_feats)
 
-            mask_targets = self.mask_head.get_target(
-                sampling_results, gt_masks, self.train_cfg.rcnn)
+            mask_targets = self.mask_head.get_target(sampling_results,
+                                                     gt_masks,
+                                                     self.train_cfg.rcnn)
             pos_labels = torch.cat(
                 [res.pos_gt_labels for res in sampling_results])
             loss_mask = self.mask_head.loss(mask_pred, mask_targets,

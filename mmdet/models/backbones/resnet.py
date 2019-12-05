@@ -2,14 +2,12 @@ import logging
 
 import torch.nn as nn
 import torch.utils.checkpoint as cp
-from torch.nn.modules.batchnorm import _BatchNorm
-
 from mmcv.cnn import constant_init, kaiming_init
 from mmcv.runner import load_checkpoint
+from torch.nn.modules.batchnorm import _BatchNorm
 
-from mmdet.ops import DeformConv, ModulatedDeformConv, ContextBlock
 from mmdet.models.plugins import GeneralizedAttention
-
+from mmdet.ops import ContextBlock, DeformConv, ModulatedDeformConv
 from ..registry import BACKBONES
 from ..utils import build_conv_layer, build_norm_layer
 
@@ -56,7 +54,8 @@ class BasicBlock(nn.Module):
         self.downsample = downsample
         self.stride = stride
         self.dilation = dilation
-        assert not with_cp
+        #assert not with_cp
+        self.with_cp = with_cp
 
     @property
     def norm1(self):
@@ -67,19 +66,25 @@ class BasicBlock(nn.Module):
         return getattr(self, self.norm2_name)
 
     def forward(self, x):
-        identity = x
+        def _inner_forward(x):
+            identity = x
 
-        out = self.conv1(x)
-        out = self.norm1(out)
-        out = self.relu(out)
+            out = self.conv1(x)
+            out = self.norm1(out)
+            out = self.relu(out)
 
-        out = self.conv2(out)
-        out = self.norm2(out)
+            out = self.conv2(out)
+            out = self.norm2(out)
 
-        if self.downsample is not None:
-            identity = self.downsample(x)
+            if self.downsample is not None:
+                identity = self.downsample(x)
 
-        out += identity
+            out += identity
+            return out
+        if self.with_cp and x.requires_grad:
+            out = cp.checkpoint(_inner_forward, x)
+        else:
+            out = _inner_forward(x)
         out = self.relu(out)
 
         return out
@@ -381,11 +386,13 @@ class ResNet(nn.Module):
                  gen_attention=None,
                  stage_with_gen_attention=((), (), (), ()),
                  with_cp=False,
+                 pretrained=None,
                  zero_init_residual=True):
         super(ResNet, self).__init__()
         if depth not in self.arch_settings:
             raise KeyError('invalid depth {} for resnet'.format(depth))
         self.depth = depth
+        self.pretrained = pretrained
         self.num_stages = num_stages
         assert num_stages >= 1 and num_stages <= 4
         self.strides = strides
@@ -479,10 +486,15 @@ class ResNet(nn.Module):
                 param.requires_grad = False
 
     def init_weights(self, pretrained=None):
-        if isinstance(pretrained, str):
+        if self.pretrained is None:
+            self.pretrained = pretrained
+        else:
+            self.pretrained = self.pretrained
+        if isinstance(self.pretrained, str):
             logger = logging.getLogger()
-            load_checkpoint(self, pretrained, strict=False, logger=logger)
-        elif pretrained is None:
+            print(self.pretrained)
+            load_checkpoint(self, self.pretrained, strict=False, logger=logger)
+        elif self.pretrained is None:
             for m in self.modules():
                 if isinstance(m, nn.Conv2d):
                     kaiming_init(m)

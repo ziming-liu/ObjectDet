@@ -1,5 +1,5 @@
-from mmdet.core import (bbox2roi, bbox_mapping, merge_aug_proposals,
-                        merge_aug_bboxes, merge_aug_masks, multiclass_nms)
+from mmdet.core import (bbox2roi, bbox_mapping, merge_aug_bboxes,
+                        merge_aug_masks, merge_aug_proposals, multiclass_nms)
 
 
 class RPNTestMixin(object):
@@ -47,7 +47,7 @@ class BBoxTestMixin(object):
             x[:len(self.bbox_roi_extractor.featmap_strides)], rois)
         if self.with_shared_head:
             roi_feats = self.shared_head(roi_feats)
-        cls_score, _, bbox_pred = self.bbox_head(roi_feats)
+        cls_score, bbox_pred = self.bbox_head(roi_feats)
         img_shape = img_meta[0]['img_shape']
         scale_factor = img_meta[0]['scale_factor']
         det_bboxes, det_labels = self.bbox_head.get_det_bboxes(
@@ -77,7 +77,7 @@ class BBoxTestMixin(object):
                 x[:len(self.bbox_roi_extractor.featmap_strides)], rois)
             if self.with_shared_head:
                 roi_feats = self.shared_head(roi_feats)
-            cls_score, _, bbox_pred = self.bbox_head(roi_feats)
+            cls_score, bbox_pred = self.bbox_head(roi_feats)
             bboxes, scores = self.bbox_head.get_det_bboxes(
                 rois,
                 cls_score,
@@ -91,9 +91,77 @@ class BBoxTestMixin(object):
         # after merging, bboxes will be rescaled to the original image size
         merged_bboxes, merged_scores = merge_aug_bboxes(
             aug_bboxes, aug_scores, img_metas, rcnn_test_cfg)
-        det_bboxes, det_labels = multiclass_nms(
-            merged_bboxes, merged_scores, rcnn_test_cfg.score_thr,
-            rcnn_test_cfg.nms, rcnn_test_cfg.max_per_img)
+        det_bboxes, det_labels = multiclass_nms(merged_bboxes, merged_scores,
+                                                rcnn_test_cfg.score_thr,
+                                                rcnn_test_cfg.nms,
+                                                rcnn_test_cfg.max_per_img)
+        return det_bboxes, det_labels
+    def aug_test_cascade_bboxes(self, feats, img_metas, proposal_list, rcnn_test_cfg,rescale=False):
+        aug_bboxes = []
+        aug_scores = []
+        for x, img_meta in zip(feats, img_metas):
+            # only one image in the batch
+            img_shape = img_meta[0]['img_shape']
+            ori_shape = img_meta[0]['ori_shape']
+            scale_factor = img_meta[0]['scale_factor']
+            flip = img_meta[0]['flip']
+            # "ms" in variable names means multi-stage
+            ms_bbox_result = {}
+            ms_segm_result = {}
+            ms_scores = []
+            #rcnn_test_cfg = self.test_cfg.rcnn
+            flip = img_meta[0]['flip']
+            # TODO more flexible
+            proposals = bbox_mapping(proposal_list[0][:, :4], img_shape,
+                                     scale_factor, flip)
+            rois = bbox2roi([proposals])
+            #rois = bbox2roi(proposal_list)
+            for i in range(self.num_stages):
+                bbox_roi_extractor = self.bbox_roi_extractor[i]
+                bbox_head = self.bbox_head[i]
+
+                bbox_feats = bbox_roi_extractor(
+                    x[:len(bbox_roi_extractor.featmap_strides)], rois)
+                if self.with_shared_head:
+                    bbox_feats = self.shared_head(bbox_feats)
+
+                cls_score, bbox_pred = bbox_head(bbox_feats)
+                ms_scores.append(cls_score)
+                if self.test_cfg.keep_all_stages:
+                    bboxes, scores = bbox_head.get_det_bboxes(
+                        rois,
+                        cls_score,
+                        bbox_pred,
+                        img_shape,
+                        scale_factor,
+                        rescale=False,
+                        cfg=None)
+
+                if i < self.num_stages - 1:
+                    bbox_label = cls_score.argmax(dim=1)
+                    rois = bbox_head.regress_by_class(rois, bbox_label, bbox_pred,
+                                                      img_meta[0])
+
+            cls_score = sum(ms_scores) / self.num_stages
+            bboxes, scores = self.bbox_head[-1].get_det_bboxes(
+                rois,
+                cls_score,
+                bbox_pred,
+                img_shape,
+                scale_factor,
+                rescale=False,
+                cfg=None)# cfg must be None to prove no NMS operation is performed
+            #print(bboxes.shape)
+            #print(scores.shape)
+            aug_bboxes.append(bboxes)
+            aug_scores.append(scores)
+        # after merging, bboxes will be rescaled to the original image size
+        merged_bboxes, merged_scores = merge_aug_bboxes(
+            aug_bboxes, aug_scores, img_metas, rcnn_test_cfg)
+        det_bboxes, det_labels = multiclass_nms(merged_bboxes, merged_scores,
+                                                rcnn_test_cfg.score_thr,
+                                                rcnn_test_cfg.nms,
+                                                rcnn_test_cfg.max_per_img)
         return det_bboxes, det_labels
 
 
@@ -121,9 +189,11 @@ class MaskTestMixin(object):
             if self.with_shared_head:
                 mask_feats = self.shared_head(mask_feats)
             mask_pred = self.mask_head(mask_feats)
-            segm_result = self.mask_head.get_seg_masks(
-                mask_pred, _bboxes, det_labels, self.test_cfg.rcnn, ori_shape,
-                scale_factor, rescale)
+            segm_result = self.mask_head.get_seg_masks(mask_pred, _bboxes,
+                                                       det_labels,
+                                                       self.test_cfg.rcnn,
+                                                       ori_shape, scale_factor,
+                                                       rescale)
         return segm_result
 
     def aug_test_mask(self, feats, img_metas, det_bboxes, det_labels):
