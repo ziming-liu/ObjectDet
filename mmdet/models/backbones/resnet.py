@@ -361,6 +361,8 @@ class ResNet(nn.Module):
     """
 
     arch_settings = {
+        10:(BasicBlock,(1,1,1,1)),
+        14:(BasicBlock,(1,2,2,1)),
         18: (BasicBlock, (2, 2, 2, 2)),
         34: (BasicBlock, (3, 4, 6, 3)),
         50: (Bottleneck, (3, 4, 6, 3)),

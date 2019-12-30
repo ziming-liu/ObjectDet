@@ -16,9 +16,10 @@ from .fsaf import FSAFNet
 from .pg_cascade_rcnn import PGCascadeRCNN
 from .pg_cascade_rcnn_mod2 import PGCascadeRCNNmod2
 from .pg_2stream_cascade_rcnn import PG2streamCascadeRCNN
+from .pg_3stream_cascade_rcnn import PG3streamCascadeRCNN
 __all__ = [
     'BaseDetector', 'SingleStageDetector', 'TwoStageDetector', 'RPN',
     'FastRCNN', 'FasterRCNN', 'MaskRCNN', 'CascadeRCNN', 'HybridTaskCascade',
     'DoubleHeadRCNN', 'RetinaNet','FSAFNet', 'FCOS', 'GridRCNN', 'MaskScoringRCNN',
-    'PGCascadeRCNN','PGCascadeRCNNmod2','PG2streamCascadeRCNN'
+    'PGCascadeRCNN','PGCascadeRCNNmod2','PG2streamCascadeRCNN','PG3streamCascadeRCNN'
 ]
