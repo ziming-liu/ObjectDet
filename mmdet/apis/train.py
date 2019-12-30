@@ -153,6 +153,7 @@ def _dist_train(model, dataset, cfg, validate=False):
     # fp16 setting
     fp16_cfg = cfg.get('fp16', None)
     if fp16_cfg is not None:
+        print("半精度")
         optimizer_config = Fp16OptimizerHook(**cfg.optimizer_config,
                                              **fp16_cfg)
     else:

@@ -13,6 +13,7 @@ from .fpn_laterial import FPNlaterial
 from .fpn_ip import FPNip
 from .fpn_3to1 import FPN3to1
 from .pgfpn import PGFPN
+from .pgfpn_2s import PGFPN2s
 __all__ = ['FPN', 'BFP','FAM','FPN3to1','FPNip', 'flatFPN','FPNlaterial',
-           'FPNalign','kiteFPNalign','pinkFPN','fusingFPN', 'HRFPN',
+           'FPNalign','kiteFPNalign','pinkFPN','fusingFPN', 'HRFPN', 'PGFPN2s',
            'customFPN','kiteFPN','PGFPN']

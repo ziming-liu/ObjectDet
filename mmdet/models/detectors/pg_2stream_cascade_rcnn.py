@@ -8,18 +8,20 @@ from mmdet.core import (bbox2result, bbox2roi, build_assigner, build_sampler,
 from .. import builder
 from ..registry import DETECTORS
 from .base import BaseDetector
-from .test_mixins import RPNTestMixin,BBoxTestMixin
+from .test_mixins import RPNTestMixin, BBoxTestMixin
 
 
 @DETECTORS.register_module
-class PGCascadeRCNNmod2(BaseDetector, RPNTestMixin,BBoxTestMixin):
+class PG2streamCascadeRCNN(BaseDetector, RPNTestMixin,BBoxTestMixin):
 
     def __init__(self,
                  num_stages,
                  backbone_deep,
-                 backbone_shallow,
+                 #backbone_shallow,
                  backbone,
                  neck=None,
+                 #neck_deep=None,
+                 #neck_shallow=None,
                  shared_head=None,
                  rpn_head=None,
                  bbox_roi_extractor=None,
@@ -31,17 +33,21 @@ class PGCascadeRCNNmod2(BaseDetector, RPNTestMixin,BBoxTestMixin):
                  pretrained=None):
         assert bbox_roi_extractor is not None
         assert bbox_head is not None
-        super(PGCascadeRCNNmod2, self).__init__()
+        super(PG2streamCascadeRCNN, self).__init__()
 
         self.num_stages = num_stages
         self.backbone = builder.build_backbone(backbone)
         self.backbone_deep = builder.build_backbone(backbone_deep)
-        self.backbone_shallow = builder.build_backbone(backbone_shallow)
+        #self.backbone_shallow = builder.build_backbone(backbone_shallow)
 
 
 
         if neck is not None:
-            self.neck_pg = builder.build_neck(neck)
+            self.neck = builder.build_neck(neck)
+        #if neck_deep is not None:
+        #    self.neck_deep = builder.build_neck(neck_deep)
+        #if neck_shallow is not None:
+        #    self.neck_shallow = builder.build_neck(neck_shallow)
 
         if rpn_head is not None:
             self.rpn_head = builder.build_head(rpn_head)
@@ -96,18 +102,22 @@ class PGCascadeRCNNmod2(BaseDetector, RPNTestMixin,BBoxTestMixin):
         return hasattr(self, 'rpn_head') and self.rpn_head is not None
 
     def init_weights(self, pretrained=None):
-        super(PGCascadeRCNNmod2, self).init_weights(pretrained)
+        super(PG2streamCascadeRCNN, self).init_weights(pretrained)
         self.backbone.init_weights(pretrained=pretrained)
         self.backbone_deep.init_weights(pretrained=pretrained)
-        self.backbone_shallow.init_weights(pretrained=pretrained)
+        #self.backbone_shallow.init_weights(pretrained=pretrained)
         if self.with_neck:
-            if isinstance(self.neck_pg, nn.Sequential):
-                for m in self.neck_pg:
+            if isinstance(self.neck, nn.Sequential):
+                for m in self.neck:
                     m.init_weights()
-
+                #for m in self.neck_deep:
+                #    m.init_weights()
+                #for m in self.neck_shallow:
+                #    m.init_weights()
             else:
-                self.neck_pg.init_weights()
-
+                self.neck.init_weights()
+                #self.neck_deep.init_weights()
+                #self.neck_shallow.init_weights()
         if self.with_rpn:
             self.rpn_head.init_weights()
         if self.with_shared_head:
@@ -122,21 +132,22 @@ class PGCascadeRCNNmod2(BaseDetector, RPNTestMixin,BBoxTestMixin):
                 self.mask_head[i].init_weights()
 
     def extract_feat(self, img):
-        x_large = F.interpolate(img,scale_factor=2,mode='nearest')
-        x_small = F.interpolate(img,scale_factor=0.5,mode='nearest')
-        x_mid = img
+
+        #x_large = F.interpolate(img, scale_factor=2, mode='nearest')
+        x = img
+        x_large = F.interpolate(img, scale_factor=2, mode='nearest')
         #print(x_large.shape)
-        #print(x_mid.shape)
-        #print(x_small.shape)
-        x_large = self.backbone_shallow(x_large)
-        x_mid = self.backbone(x_mid)
-        x_small = self.backbone_deep(x_small)
-        x = list()
-        x.extend(x_large)
-        x.extend(x_mid)
-        x.extend(x_small)
-        x = self.neck_pg(x)
-        return x
+        # print(x_mid.shape)
+        # print(x_small.shape)
+        #x_large = self.backbone_shallow(x_large)
+        x_large = self.backbone(x_large)
+        x = self.backbone_deep(x)
+        input = list()
+        input.extend(x_large)
+        input.extend(x)
+        output = self.neck(input)
+        
+        return output
 
     def forward_dummy(self, img):
         outs = ()
@@ -179,7 +190,6 @@ class PGCascadeRCNNmod2(BaseDetector, RPNTestMixin,BBoxTestMixin):
                       proposals=None):
         # b c h w
         x = self.extract_feat(img)
-
         losses = dict()
 
         if self.with_rpn:
@@ -291,7 +301,6 @@ class PGCascadeRCNNmod2(BaseDetector, RPNTestMixin,BBoxTestMixin):
         return losses
 
     def simple_test(self, img, img_meta, proposals=None, rescale=False):
-
         x = self.extract_feat(img)
 
         proposal_list = self.simple_test_rpn(
@@ -423,13 +432,9 @@ class PGCascadeRCNNmod2(BaseDetector, RPNTestMixin,BBoxTestMixin):
 
         return results
 
-    #def aug_test(self, img, img_meta, proposals=None, rescale=False):
-    #    raise NotImplementedError
     def aug_test(self, imgs, img_metas, rescale=False):
         """Test with augmentations.
-
-        If rescale is False, then returned bboxes and masks will fit the scale
-        of imgs[0].
+        FOR cascade rcnn, we need this  function
         """
         # recompute feats to save memory
         proposal_list = self.aug_test_rpn(
@@ -437,14 +442,15 @@ class PGCascadeRCNNmod2(BaseDetector, RPNTestMixin,BBoxTestMixin):
         det_bboxes, det_labels = self.aug_test_cascade_bboxes(
             self.extract_feats(imgs), img_metas, proposal_list,
             self.test_cfg.rcnn)
-
+        #bbox_result = bbox2result(det_bboxes, det_labels,
+         #                         self.bbox_head[-1].num_classes)
         if rescale:
             _det_bboxes = det_bboxes
         else:
             _det_bboxes = det_bboxes.clone()
             _det_bboxes[:, :4] *= img_metas[0][0]['scale_factor']
         bbox_results = bbox2result(_det_bboxes, det_labels,
-                                   self.bbox_head.num_classes)
+                                   self.bbox_head[-1].num_classes)
 
         # det_bboxes always keep the original scale
         if self.with_mask:
@@ -463,5 +469,5 @@ class PGCascadeRCNNmod2(BaseDetector, RPNTestMixin,BBoxTestMixin):
         else:
             if isinstance(result, dict):
                 result = result['ensemble']
-        super(PGCascadeRCNNmod2, self).show_result(data, result, img_norm_cfg,
+        super(PG2streamCascadeRCNN, self).show_result(data, result, img_norm_cfg,
                                              **kwargs)
