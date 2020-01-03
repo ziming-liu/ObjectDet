@@ -8,6 +8,11 @@ model = dict(
         pretrained='modelzoo://resnet101',
         depth=101,
         num_stages=4,
+        dcn=dict(
+            modulated=False, deformable_groups=1, fallback_on_stride=False),
+        stage_with_dcn=(False, True, True, True),
+        gcb=dict(ratio=1. / 4., ),
+        stage_with_gcb=(False, True, True, True),
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
         style='pytorch', with_cp=True),
@@ -16,6 +21,11 @@ model = dict(
         pretrained='modelzoo://resnet152',
         depth=152,
         num_stages=4,
+        dcn=dict(
+            modulated=False, deformable_groups=1, fallback_on_stride=False),
+        stage_with_dcn=(False, True, True, True),
+        gcb=dict(ratio=1. / 4., ),
+        stage_with_gcb=(False, True, True, True),
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
         style='pytorch', with_cp=True),
