@@ -2,24 +2,10 @@
 norm_cfg = dict(type='SyncBN', requires_grad=True)
 syncBN=True
 model = dict(
-    type='PG3streamCascadeRCNN',
+    type='PG2streamCascadeRCNN',
     num_stages=3,
     pretrained=None,
     backbone=dict(
-        type='ResNet',
-        pretrained='modelzoo://resnet50',
-        depth=50,
-        num_stages=4,
-        dcn=dict(
-            modulated=False, deformable_groups=1, fallback_on_stride=False),
-        stage_with_dcn=(False, True, True, True),
-        gcb=dict(ratio=1. / 4., ),
-        stage_with_gcb=(False, True, True, True),
-        out_indices=(0, 1, 2, 3),
-        frozen_stages=1,
-        norm_cfg=norm_cfg,
-        style='pytorch',with_cp=True),
-    backbone_deep=dict(
         type='ResNet',
         pretrained='modelzoo://resnet101',
         depth=101,
@@ -31,9 +17,9 @@ model = dict(
         stage_with_gcb=(False, True, True, True),
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
-        norm_cfg=norm_cfg,
-        style='pytorch',with_cp=True),
-    backbone_deeper=dict(
+        #norm_cfg=norm_cfg,
+        style='pytorch', with_cp=True),
+    backbone_deep=dict(
         type='ResNet',
         pretrained='modelzoo://resnet152',
         depth=152,
@@ -45,11 +31,11 @@ model = dict(
         stage_with_gcb=(False, True, True, True),
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
-        norm_cfg=norm_cfg,
-        style='pytorch',with_cp=True),
+        #norm_cfg = norm_cfg,
+        style='pytorch', with_cp=True),
     neck=dict(
-        type='PGFPN3s',
-        in_channels=[256, 512, 1024, 2048, 256, 512, 1024, 2048, 256, 512, 1024, 2048],
+        type='PGFPN2s',
+        in_channels=[256, 512, 1024, 2048, 256, 512, 1024, 2048],
         out_channels=256,
         num_outs=5),
     rpn_head=dict(
@@ -58,7 +44,7 @@ model = dict(
         feat_channels=256,
         anchor_scales=[8],
         anchor_ratios=[0.5, 1.0, 2.0],
-        anchor_strides=[4, 8, 16, 32, 64],
+        anchor_strides=[4 // 2, 8 // 2, 16 // 2, 32 // 2, 64 // 2],
         target_means=[.0, .0, .0, .0],
         target_stds=[1.0, 1.0, 1.0, 1.0],
         loss_cls=dict(
@@ -68,7 +54,7 @@ model = dict(
         type='SingleRoIExtractor',
         roi_layer=dict(type='RoIAlign', out_size=7, sample_num=2),
         out_channels=256,
-        featmap_strides=[4, 8, 16, 32]),
+        featmap_strides=[4 // 2, 8 // 2, 16 // 2, 32 // 2]),
     bbox_head=[
         dict(
             type='SharedFCBBoxHead',
@@ -240,9 +226,9 @@ data = dict(
         type=dataset_type,
         ann_file=data_root + 'annotations/instances_train2017.json',
         img_prefix=data_root + 'train2017/',
-        img_scale=(1333*2, 800*2),
+        img_scale=(1333, 800),
         img_norm_cfg=img_norm_cfg,
-        size_divisor=32*4,
+        size_divisor=32*2,
         flip_ratio=0.5,
         with_mask=True,
         with_crowd=True,
@@ -251,9 +237,9 @@ data = dict(
         type=dataset_type,
         ann_file=data_root + 'annotations/instances_val2017.json',
         img_prefix=data_root + 'val2017/',
-        img_scale=(1333*2, 800*2),
+        img_scale=(1333, 800),
         img_norm_cfg=img_norm_cfg,
-        size_divisor=32*4,
+        size_divisor=32*2,
         flip_ratio=0,
         with_mask=True,
         with_crowd=True,
@@ -262,9 +248,9 @@ data = dict(
         type=dataset_type,
         ann_file=data_root + 'annotations/instances_val2017.json',
         img_prefix=data_root + 'val2017/',
-        img_scale=(2000, 1200),
+        img_scale=(1000, 600),
         img_norm_cfg=img_norm_cfg,
-        size_divisor=32*4,
+        size_divisor=32*2,
         flip_ratio=0,
         with_mask=True,
         with_label=False,
@@ -292,7 +278,7 @@ log_config = dict(
 total_epochs = 12
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/coco_sota_pg3streamcascade_rcnn_r50_101_152_fpn_1x_2000'
+work_dir = './work_dirs/coco_sota_pg2streamcascade_rcnn_r101_152_fpn_1x'
 load_from =  None#'./work_dirs/visdrone_sota_patch_pg2streamcascade_rcnn_r18_fpn_1x_1900half/epoch_2.pth'
 resume_from = None#'./work_dirs/visdrone_sota_patch_pg2streamcascade_rcnn_r18_fpn_1x_1900half/epoch_2.pth'
 workflow = [('train', 1)]
