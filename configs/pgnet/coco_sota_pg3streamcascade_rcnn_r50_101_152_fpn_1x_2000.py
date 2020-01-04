@@ -1,4 +1,5 @@
 # model settings
+norm_cfg = dict(type='SyncBN', requires_grad=True)
 model = dict(
     type='PG3streamCascadeRCNN',
     num_stages=3,
@@ -15,6 +16,7 @@ model = dict(
         stage_with_gcb=(False, True, True, True),
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
+        norm_cfg=norm_cfg,
         style='pytorch',with_cp=True),
     backbone_deep=dict(
         type='ResNet',
@@ -24,10 +26,11 @@ model = dict(
         dcn=dict(
             modulated=False, deformable_groups=1, fallback_on_stride=False),
         stage_with_dcn=(False, True, True, True),
-gcb=dict(ratio=1. / 4., ),
+        gcb=dict(ratio=1. / 4., ),
         stage_with_gcb=(False, True, True, True),
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
+        norm_cfg=norm_cfg,
         style='pytorch',with_cp=True),
     backbone_deeper=dict(
         type='ResNet',
@@ -37,10 +40,11 @@ gcb=dict(ratio=1. / 4., ),
         dcn=dict(
             modulated=False, deformable_groups=1, fallback_on_stride=False),
         stage_with_dcn=(False, True, True, True),
-gcb=dict(ratio=1. / 4., ),
+        gcb=dict(ratio=1. / 4., ),
         stage_with_gcb=(False, True, True, True),
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
+        norm_cfg=norm_cfg,
         style='pytorch',with_cp=True),
     neck=dict(
         type='PGFPN3s',
@@ -229,7 +233,7 @@ data_root = 'data/coco/'
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 data = dict(
-    imgs_per_gpu=2,
+    imgs_per_gpu=1,
     workers_per_gpu=2,
     train=dict(
         type=dataset_type,
