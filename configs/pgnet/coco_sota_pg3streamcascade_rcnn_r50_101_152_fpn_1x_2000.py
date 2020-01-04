@@ -17,7 +17,7 @@ model = dict(
         stage_with_gcb=(False, True, True, True),
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
-        norm_cfg=norm_cfg,
+        #norm_cfg=norm_cfg,
         style='pytorch',with_cp=True),
     backbone_deep=dict(
         type='ResNet',
@@ -31,7 +31,7 @@ model = dict(
         stage_with_gcb=(False, True, True, True),
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
-        norm_cfg=norm_cfg,
+       # norm_cfg=norm_cfg,
         style='pytorch',with_cp=True),
     backbone_deeper=dict(
         type='ResNet',
@@ -45,7 +45,7 @@ model = dict(
         stage_with_gcb=(False, True, True, True),
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
-        norm_cfg=norm_cfg,
+        #norm_cfg=norm_cfg,
         style='pytorch',with_cp=True),
     neck=dict(
         type='PGFPN3s',
