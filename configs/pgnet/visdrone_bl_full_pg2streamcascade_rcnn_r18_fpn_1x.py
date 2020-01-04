@@ -4,6 +4,7 @@ model = dict(
     num_stages=3,
     pretrained=None,
     backbone=dict(
+        flag="shallow",
         type='ResNet',
         pretrained='modelzoo://resnet18',
         depth=18,
@@ -12,6 +13,7 @@ model = dict(
         frozen_stages=1,
         style='pytorch',with_cp=False),
     backbone_deep=dict(
+        flag='deep',
         type='ResNet',
         pretrained='modelzoo://resnet101',
         depth=101,
