@@ -12,7 +12,7 @@ from mmdet.models import build_detector
 import torch
 import os
 from mmdet.models.sync_batchnorm import convert_model
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2"
+#os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2"
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a detector')
