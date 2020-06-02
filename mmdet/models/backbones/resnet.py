@@ -1,5 +1,8 @@
 import logging
+import os
+import random
 
+import cv2
 import torch.nn as nn
 import torch.utils.checkpoint as cp
 from mmcv.cnn import constant_init, kaiming_init
@@ -389,6 +392,7 @@ class ResNet(nn.Module):
                  stage_with_gen_attention=((), (), (), ()),
                  with_cp=False,
                  pretrained=None,
+                 flag='',
                  zero_init_residual=True):
         super(ResNet, self).__init__()
         if depth not in self.arch_settings:
@@ -455,6 +459,7 @@ class ResNet(nn.Module):
 
         self.feat_dim = self.block.expansion * 64 * 2**(
             len(self.stage_blocks) - 1)
+        self.flag = flag
 
     @property
     def norm1(self):
@@ -524,9 +529,27 @@ class ResNet(nn.Module):
         x = self.relu(x)
         x = self.maxpool(x)
         outs = []
+        randstr = ''
+        for zz in range(5):
+            randstr = randstr + str(random.randint(0, 9))
         for i, layer_name in enumerate(self.res_layers):
             res_layer = getattr(self, layer_name)
             x = res_layer(x)
+            """
+            tem = x.detach()[0].mean(0)
+            h,w = tem.shape
+            tem = tem.unsqueeze(2).repeat(1,1,1).cpu().numpy()
+            import numpy as np
+            tem = tem  - np.min(tem)
+            #print(np.max(tem))
+            tem = tem / (np.max(tem) if np.max(tem)!=0 else 1)
+            tem = np.uint8(255 * tem)
+            heatmap = cv2.applyColorMap(cv2.resize(tem, (w,h)), cv2.COLORMAP_JET)
+            path = "/home/share2/ziming/2sbackbone/"
+            if not os.path.exists(path):
+                os.makedirs(path)
+            cv2.imwrite(path+randstr+self.flag+'_'+str(i)+'.jpg',heatmap)
+             """
             if i in self.out_indices:
                 outs.append(x)
         return tuple(outs)

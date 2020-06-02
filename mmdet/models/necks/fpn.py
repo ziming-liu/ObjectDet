@@ -1,3 +1,7 @@
+import os
+import random
+
+import cv2
 import torch.nn as nn
 import torch.nn.functional as F
 from mmcv.cnn import xavier_init
@@ -107,7 +111,26 @@ class FPN(nn.Module):
             lateral_conv(inputs[i + self.start_level])
             for i, lateral_conv in enumerate(self.lateral_convs)
         ]
+        """ 
+        randstr = ''
+        for zz in range(5):
+            randstr = randstr + str(random.randint(0, 9))
+        path = "/home/share2/ziming/singlefpn/"
+        if not os.path.exists(path):
+            os.makedirs(path)
+        for mm in range(len(laterals)):
+            tem = laterals[mm].detach()[0].mean(0)
+            h, w = tem.shape
+            tem = tem.unsqueeze(2).repeat(1, 1, 1).cpu().numpy()
+            import numpy as np
+            tem = tem - np.min(tem)
+            tem = tem / (np.max(tem) if np.max(tem)!=0 else 1)
+            tem = np.uint8(255 * tem)
+            # print(tem.shape)
+            heatmap = cv2.applyColorMap(cv2.resize(tem, (w, h)), cv2.COLORMAP_JET)
+            cv2.imwrite(path + randstr + 'single' + '_' + str(mm) + '.jpg', heatmap)
 
+        """
         # build top-down path
         used_backbone_levels = len(laterals)
         for i in range(len(laterals) - 1, 0, -1):
@@ -144,5 +167,17 @@ class FPN(nn.Module):
                         outs.append(self.fpn_convs[i](F.relu(outs[-1])))
                     else:
                         outs.append(self.fpn_convs[i](outs[-1]))
-
+        """ 
+        for mm in range(len(outs)):
+            tem = outs[mm].detach()[0].mean(0)
+            h, w = tem.shape
+            tem = tem.unsqueeze(2).repeat(1, 1, 1).cpu().numpy()
+            import numpy as np
+            tem = tem - np.min(tem)
+            tem = tem / (np.max(tem) if np.max(tem)!=0 else 1)
+            tem = np.uint8(255 * tem)
+            # print(tem.shape)
+            heatmap = cv2.applyColorMap(cv2.resize(tem, (w, h)), cv2.COLORMAP_JET)
+            cv2.imwrite(path + randstr + 'fusing' + '_' + str(mm) + '.jpg', heatmap)
+        """
         return tuple(outs)

@@ -453,12 +453,12 @@ class PG2streamCascadeRCNN(BaseDetector, RPNTestMixin,BBoxTestMixin):
                                    self.bbox_head[-1].num_classes)
 
         # det_bboxes always keep the original scale
-        if self.with_mask:
-            segm_results = self.aug_test_mask(
-                self.extract_feats(imgs), img_metas, det_bboxes, det_labels)
-            return bbox_results, segm_results
-        else:
-            return bbox_results
+        #if self.with_mask:
+        #    segm_results = self.aug_test_mask(
+        #        self.extract_feats(imgs), img_metas, det_bboxes, det_labels)
+        #    return bbox_results, segm_results
+        #else:
+        return bbox_results
 
     def show_result(self, data, result, img_norm_cfg, **kwargs):
         if self.with_mask:

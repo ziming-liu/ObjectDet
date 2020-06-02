@@ -1,5 +1,6 @@
 # model settings
 norm_cfg = dict(type='SyncBN', requires_grad=True)
+syncBN=True
 model = dict(
     type='PG3streamCascadeRCNN',
     num_stages=3,
@@ -16,7 +17,7 @@ model = dict(
         stage_with_gcb=(False, True, True, True),
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
-        norm_cfg=norm_cfg,
+        #norm_cfg=norm_cfg,
         style='pytorch',with_cp=True),
     backbone_deep=dict(
         type='ResNet',
@@ -30,7 +31,7 @@ model = dict(
         stage_with_gcb=(False, True, True, True),
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
-        norm_cfg=norm_cfg,
+       # norm_cfg=norm_cfg,
         style='pytorch',with_cp=True),
     backbone_deeper=dict(
         type='ResNet',
@@ -44,7 +45,7 @@ model = dict(
         stage_with_gcb=(False, True, True, True),
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
-        norm_cfg=norm_cfg,
+        #norm_cfg=norm_cfg,
         style='pytorch',with_cp=True),
     neck=dict(
         type='PGFPN3s',
@@ -259,9 +260,9 @@ data = dict(
         with_label=True),
     test=dict(
         type=dataset_type,
-        ann_file=data_root + 'annotations/instances_val2017.json',
-        img_prefix=data_root + 'val2017/',
-        img_scale=(2000, 1200),
+        ann_file=data_root + 'annotations/image_info_test-dev2017.json',
+        img_prefix=data_root + 'test2017/',
+        img_scale=[(1200*2, 600*2),(1333*2, 800*2),(1600*2, 1000*2),],
         img_norm_cfg=img_norm_cfg,
         size_divisor=32*4,
         flip_ratio=0,

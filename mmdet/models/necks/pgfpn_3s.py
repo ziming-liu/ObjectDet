@@ -1,3 +1,8 @@
+import os
+import random
+
+import cv2
+
 import torch.nn as nn
 import torch.nn.functional as F
 from mmcv.cnn import xavier_init
@@ -117,7 +122,47 @@ class PGFPN3s(nn.Module):
         large_path.extend(laterals[:4])
         mid_path.extend(laterals[4:8])
         small_path.extend(laterals[8:12])
-
+        """ 
+        randstr = ''
+        for zz in range(5):
+            randstr = randstr + str(random.randint(0, 9))
+        path = "/home/share2/ziming/2sfpnv2/"
+        if not os.path.exists(path):
+            os.makedirs(path)
+        for mm in range(len(large_path)):
+            tem = large_path[mm].detach()[0].mean(0)
+            h, w = tem.shape
+            tem = tem.unsqueeze(2).repeat(1, 1, 1).cpu().numpy()
+            import numpy as np
+            tem = tem - np.min(tem)
+            tem = tem / np.max(tem)
+            tem = np.uint8(255 * tem)
+            # print(tem.shape)
+            heatmap = cv2.applyColorMap(cv2.resize(tem, (w, h)), cv2.COLORMAP_JET)
+            cv2.imwrite(path + randstr + 'large' + '_' + str(mm) + '.jpg', heatmap)
+        for mm in range(len(mid_path)):
+            tem = mid_path[mm].detach()[0].mean(0)
+            h, w = tem.shape
+            tem = tem.unsqueeze(2).repeat(1, 1, 1).cpu().numpy()
+            import numpy as np
+            tem = tem - np.min(tem)
+            tem = tem / (np.max(tem) if np.max(tem)!=0 else 1)
+            tem = np.uint8(255 * tem)
+            # print(tem.shape)
+            heatmap = cv2.applyColorMap(cv2.resize(tem, (w, h)), cv2.COLORMAP_JET)
+            cv2.imwrite(path + randstr + 'mid' + '_' + str(mm) + '.jpg', heatmap)
+        for mm in range(len(small_path)):
+            tem = small_path[mm].detach()[0].mean(0)
+            h, w = tem.shape
+            tem = tem.unsqueeze(2).repeat(1, 1, 1).cpu().numpy()
+            import numpy as np
+            tem = tem - np.min(tem)
+            tem = tem / (np.max(tem) if np.max(tem)!=0 else 1)
+            tem = np.uint8(255 * tem)
+            # print(tem.shape)
+            heatmap = cv2.applyColorMap(cv2.resize(tem, (w, h)), cv2.COLORMAP_JET)
+            cv2.imwrite(path + randstr + 'small' + '_' + str(mm) + '.jpg', heatmap)
+        """
         # build top-down path
         for i in range(len(small_path) - 1, 0, -1):
             small_path[i - 1] = (small_path[i - 1] + F.interpolate(
@@ -166,5 +211,17 @@ class PGFPN3s(nn.Module):
                         outs.append(self.PGFPN3s_convs[i](F.relu(outs[-1])))
                     else:
                         outs.append(self.PGFPN3s_convs[i](outs[-1]))
-
+        """ 
+        for mm in range(len(outs)):
+            tem = outs[mm].detach()[0].mean(0)
+            h, w = tem.shape
+            tem = tem.unsqueeze(2).repeat(1, 1, 1).cpu().numpy()
+            import numpy as np
+            tem = tem - np.min(tem)
+            tem = tem / (np.max(tem) if np.max(tem)!=0 else 1)
+            tem = np.uint8(255 * tem)
+            # print(tem.shape)
+            heatmap = cv2.applyColorMap(cv2.resize(tem, (w, h)), cv2.COLORMAP_JET)
+            cv2.imwrite(path + randstr + 'fusing' + '_' + str(mm) + '.jpg', heatmap)
+        """
         return tuple(outs)

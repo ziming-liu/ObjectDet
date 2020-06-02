@@ -342,7 +342,6 @@ def eval_visdrone_det(work_dir,pkl_path,dataset,is_patch=False,isImgDisplay=Fals
                 gt_img = img
                 mmcv.imshow_det_bboxes(gt_img,gt_bboxes,gt_labels,show=False,out_file=vis_path+ nameImgs[i][:-4] + '_gt.jpg')
 
-
             bboxes = []
             labels = []
             for kk in range(len(det)):
